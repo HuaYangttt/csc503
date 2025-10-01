@@ -491,110 +491,107 @@ whyCanOrCannotTake(StudentID, CourseID, SectionID) :-
     format('Student ~w can enroll in ~w (section ~w).~n', [StudentID, CourseID, SectionID]).
 
 % recommendSemesterWork(+StudentID, +Program)
-% Provides recommendations for the student in the given Program to help them meet graduation requirements.
+
 recommendSemesterWork(StudentID, msc) :-
     format('Recommendations for MSc student ~w:~n', [StudentID]),
-    % 1. Recommend taking CSC600 if not already passed.
-    ( \+ (hasTakenCourse(StudentID, 'csc600', _S1, _U1, Grade600), is_passing_grade(Grade600)) ->
-        format('- Enroll in CSC600 (Graduate Orientation Seminar) if you have not done so, as it is required.~n', [])
+
+    % 1. CSC600
+    ( \+ (hasTakenCourse(StudentID, 'csc600', _, _, Grade600), is_passing_grade(Grade600)) ->
+        format('- Take CSC600 (Graduate Orientation Seminar).~n', [])
     ; true ),
-    % 2. Core courses recommendation.
-    count_theory_course(StudentID, NumTheory), 
+
+    % 2. Core courses
+    count_theory_course(StudentID, NumTheory),
     count_systems_course(StudentID, NumSys),
     TotalCore is NumTheory + NumSys,
-    ( TotalCore < 3 ->
-        ( NumTheory < 1 ->
-            format('- Take at least one Theory core course (e.g., CSC503, CSC505) to meet the core course requirement.~n', [])
-        ; true ),
-        format('- Take additional core courses (theory or systems) to reach a total of 3 core courses.~n', [])
+    ( NumTheory < 1 ->
+        format('- Need at least one Theory core course. Available:~n', []),
+        forall((is_theory_course(C), currentCourse(C, _, _, _, _),
+                \+ hasTakenCourse(StudentID, C, _, _, _)),
+               format('  ~w~n', [C]))
     ; true ),
-    % 3. CSC elective credits recommendation (21 units needed).
+    ( TotalCore < 3 ->
+        format('- Need at least 3 total core courses. Systems options:~n', []),
+        forall((is_systems_course(C), currentCourse(C, _, _, _, _),
+                \+ hasTakenCourse(StudentID, C, _, _, _)),
+               format('  ~w~n', [C]))
+    ; true ),
+
+    % 3. CSC 500/700 electives
     units_csc500or700_course(StudentID, UnitsCSC),
     ( UnitsCSC < 21 ->
-        RemCSC is 21 - UnitsCSC,
-        format('- Complete ~w more credit hours of CSC 5xx/7xx elective courses to reach 21 CSC elective credits.~n', [RemCSC])
+        format('- Need more CSC 500/700 electives. Options:~n', []),
+        forall((currentCourse(C, _, _, _, _),
+                (is_500_course(C); is_700_course(C)),
+                \+ hasTakenCourse(StudentID, C, _, _, _)),
+               format('  ~w~n', [C]))
     ; true ),
-    % 4. Total elective credits recommendation (30 units needed).
+
+    % 4. Total electives
     units_all_electives_course(StudentID, UnitsAll),
     ( UnitsAll < 30 ->
-        RemAll is 30 - UnitsAll,
-        format('- Take ~w more credit hours of graduate-level electives to reach the 30 total credit requirement.~n', [RemAll])
-    ; true ),
-    % 5. GPA improvement recommendation if needed.
-    list_taken_courses(TakenCourses, StudentID),
-    ( TakenCourses \= [] -> student_gpa(StudentID, TakenCourses, GPA) ; GPA = 0 ),
-    ( GPA < 75 ->
-        format('- Improve your grades to raise your overall GPA to at least 3.0.~n', [])
+        format('- Need more total electives (>=30 units). Options:~n', []),
+        forall((currentCourse(C, _, _, _, _),
+                (is_500_course(C); is_700_course(C)),
+                is_not_st511orother591orother791(C),
+                \+ hasTakenCourse(StudentID, C, _, _, _)),
+               format('  ~w~n', [C]))
     ; true ).
 
 recommendSemesterWork(StudentID, phd) :-
     format('Recommendations for PhD student ~w:~n', [StudentID]),
-    % 1. CSC600 recommendation.
-    ( \+ (hasTakenCourse(StudentID, 'csc600', _S1, _U1, Grade600), is_passing_grade(Grade600)) ->
-        format('- Enroll in CSC600 (Graduate Orientation Seminar) if not yet completed, as it is required.~n', [])
+
+    % 1. CSC600
+    ( \+ (hasTakenCourse(StudentID, 'csc600', _, _, Grade600), is_passing_grade(Grade600)) ->
+        format('- Take CSC600 (Graduate Orientation Seminar).~n', [])
     ; true ),
-    % 2. Core courses recommendation.
-    count_theory_course(StudentID, NumTheory), 
+
+    % 2. Core courses (theory>=2, systems>=2)
+    count_theory_course(StudentID, NumTheory),
+    ( NumTheory < 2 ->
+        format('- Need at least 2 Theory core courses. Available:~n', []),
+        forall((is_theory_course(C), currentCourse(C, _, _, _, _),
+                \+ hasTakenCourse(StudentID, C, _, _, _)),
+               format('  ~w~n', [C]))
+    ; true ),
     count_systems_course(StudentID, NumSys),
-    TotalCore is NumTheory + NumSys,
-    ( TotalCore < 4 ->
-        ( NumTheory < 2 ->
-            format('- Take additional theory core courses to have at least 2 theory courses in your core curriculum.~n', [])
-        ; true ),
-        format('- Take more core courses (theory/systems) to reach at least 4 core courses total.~n', [])
+    ( NumSys < 2 ->
+        format('- Need at least 2 Systems core courses. Available:~n', []),
+        forall((is_systems_course(C), currentCourse(C, _, _, _, _),
+                \+ hasTakenCourse(StudentID, C, _, _, _)),
+               format('  ~w~n', [C]))
     ; true ),
-    % 3. 700-level courses recommendation.
-    findall(CID, (hasTakenCourse(StudentID, CID, _Sec, _U, G), G >= 75, 
-                  atom_concat(_P, NumAtom, CID), atom_number(NumAtom, N), N >= 700, N < 800), Passed700),
-    sort(Passed700, Unique700Courses), length(Unique700Courses, Count700),
+
+    % 3. 700-level courses
+    findall(CID, (hasTakenCourse(StudentID, CID, _, _, G),
+                  G >= 75,
+                  atom_concat(_, NumAtom, CID),
+                  atom_number(NumAtom, N), N >= 700, N < 800), Passed700),
+    sort(Passed700, Unique700), length(Unique700, Count700),
     ( Count700 < 2 ->
-        format('- Enroll in additional 700-level courses (or CSC791 independent study) to have at least 2 advanced courses beyond the core.~n', [])
+        format('- Need at least 2 700-level courses. Options:~n', []),
+        forall((currentCourse(C, _, _, _, _),
+                atom_concat(_, NumAtom2, C), atom_number(NumAtom2, N2),
+                N2 >= 700, N2 < 800,
+                \+ member(C, Unique700),
+                \+ hasTakenCourse(StudentID, C, _, _, _)),
+               format('  ~w~n', [C]))
     ; true ),
-    % 4. CSC890 (prelim exam credits) recommendation.
-    findall(U, hasTakenCourse(StudentID, 'csc890', _Sec, U, _Gr), L890), sum_list(L890, Sum890),
+
+    % 4. CSC890 units
+    findall(U, hasTakenCourse(StudentID, 'csc890', _, U, _), L890),
+    sum_list(L890, Sum890),
     ( Sum890 < 6 ->
-        Rem890 is 6 - Sum890,
-        format('- Register for CSC890 (Doctoral Preliminary Exam) for ~w more credit hours to reach the required 6 units for the prelim exam.~n', [Rem890])
+        format('- Need more CSC890 units (Doctoral Preliminary Exam).~n', [])
     ; true ),
-    % 5. Total elective/research credits recommendation (47 units needed).
+
+    % 5. Elective/research credits
     units_csc_elective_research_phd(StudentID, UnitsTot),
     ( UnitsTot < 47 ->
-        RemUnits is 47 - UnitsTot,
-        format('- Complete ~w more credit hours of CSC electives or research to reach the 47 credits beyond the core courses required.~n', [RemUnits])
-    ; true ),
-    % 6. Exam preparation recommendations.
-    ( \+ (phdWrittenExamTaken(StudentID, _SW, _YW, OW), OW == 'pass') ->
-        format('- Prepare for and pass the PhD Written Qualifying Exam as soon as possible (required for continuation).~n', [])
-    ; true ),
-    ( \+ (phdOralExamTaken(StudentID, _SO, _YO, OO), OO == 'pass') ->
-        format('- Schedule and pass the PhD Oral Preliminary Exam within the required timeframe (6 years).~n', [])
-    ; true ),
-    ( \+ (phdDefenseTaken(StudentID, _SD, _YD, OD), OD == 'pass') ->
-        format('- Complete your dissertation and schedule the PhD Final Defense to graduate.~n', [])
-    ; true ),
-    % 7. Advisor and committee recommendations.
-    ( \+ (graduateAdvisor(StudentID, Adv, Prog), Prog == 'phd', facultyAffiliation(Adv, Dept), Dept == 'csc') ->
-        format('- Find a graduate advisor who is a full member of the CS graduate faculty (required for PhD students).~n', [])
-    ; true ),
-    findall(F, advisoryCommitteeMember(StudentID, F), ComList),
-    sort(ComList, UniqueCom), length(UniqueCom, ComCount),
-    ( ComCount < 4 ->
-        format('- Form a doctoral advisory committee with at least 4 graduate faculty members (required for PhD).~n', [])
-    ; (findall(F, (member(F, UniqueCom), facultyAffiliation(F, Dpt), Dpt \= 'csc'), Outs), Outs = [] ->
-          format('- Include at least one committee member from outside the CS department in your advisory committee.~n', [])
-      ; true ),
-      (findall(F, (member(F, UniqueCom), facultyAffiliation(F, Dpt), Dpt == 'csc'), CscMems),
-       length(CscMems, CscCount), CscCount < 2 ->
-          format('- Ensure at least two members of your committee have Computer Science as their home department.~n', [])
-      ; true )
-    ),
-    % 8. Plan of Work approval recommendation.
-    ( \+ planOfGraduateWorkApproved(StudentID) ->
-        format('- Get your Plan of Graduate Work approved by the Graduate School before graduation.~n', [])
-    ; true ),
-    % 9. GPA improvement recommendation if needed.
-    list_taken_courses(TakenCourses, StudentID),
-    ( TakenCourses \= [] -> student_gpa(StudentID, TakenCourses, GPA) ; GPA = 0 ),
-    ( GPA < 75 ->
-        format('- Work on improving your grades to raise your overall GPA to at least 3.0.~n', [])
+        format('- Need >=47 units of CSC electives/research. Options:~n', []),
+        forall((currentCourse(C, _, _, _, _),
+                is_cscElectivesOrResearch(C),
+                \+ hasTakenCourse(StudentID, C, _, _, _)),
+               format('  ~w~n', [C]))
     ; true ).
+
