@@ -386,7 +386,7 @@ canGraduate(StudentID, phd) :-
     count_theory_course(StudentID, NumTheory), 
     count_systems_course(StudentID, NumSystems),
     TotalCore is NumTheory + NumSystems,
-    TotalCore >= 4, NumTheory >= 2,
+    TotalCore >= 4, NumTheory >= 2, NumSystems >= 2,
     % 3. Advanced coursework: at least two 700-level courses (including CSC791) passed.
     findall(CID, (hasTakenCourse(StudentID, CID, _Sect2, _U2, G2), 
                   G2 >= 75,
