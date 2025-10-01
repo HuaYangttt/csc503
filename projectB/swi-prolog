@@ -460,9 +460,10 @@ hasToBeTerminated(StudentID, phd) :-
 % Checks whether a student can take a given course section and explains the reasons why or why not.
 whyCanOrCannotTake(StudentID, CourseID, SectionID) :-
     % 1. Check if the student is registered in Fall 2025.
-    ( \+ registrationSemester(StudentID, Program, 'fall', 2025, _) ->
-        format('Student ~w is not registered for Fall 2025.~n', [StudentID]), fail
-    ; true ),
+    ( registrationSemester(StudentID, Program, fall, 2025, _) ->
+        true
+    ;   format('Student ~w is not registered for Fall 2025.~n', [StudentID]), fail
+    ),
     registrationSemester(StudentID, Program, 'fall', 2025, _),
     % 2. Check if the course section is offered in Fall 2025.
     ( \+ currentCourse(CourseID, SectionID, MinU, MaxU, Prereq) ->
@@ -481,30 +482,11 @@ whyCanOrCannotTake(StudentID, CourseID, SectionID) :-
         )
     ; true ),
     % 5. Check credit load constraints.
-    ( Program == 'msc' ->
-        % MSc students should enroll in at least 9 and at most 12 units in a semester.
-        ( (MaxU + MinU) / 2 < 9 ->
-            format('MSc students must enroll in at least 9 units in a semester (additional courses needed).~n', []), fail
-        ; (MaxU > 12 ->
+    ( % PhD/MSc students can take up to 12 units per semester.
+        MaxU > 12 ->
             format('Course ~w is ~w units, exceeding the 12-unit per semester limit.~n', [CourseID, MaxU]), fail
-          ; true )
-        )
-    ; Program == 'phd' ->
-        % PhD students can take up to 12 units per semester.
-        ( MaxU > 12 ->
-            format('Course ~w is ~w units, exceeding the 12-unit per semester limit.~n', [CourseID, MaxU]), fail
-        ; true )
-    ; true ),
-    % 6. Additional PhD restriction: CSC890 (Prelim credits) max 6 units total in program.
-    ( Program == 'phd', CourseID == 'csc890' ->
-        findall(U, hasTakenCourse(StudentID, 'csc890', _SectX, U, _GradeX), Taken890List),
-        sum_list(Taken890List, Prev890Units),
-        ( Prev890Units >= 6 ->
-            format('Student ~w has already taken 6 units of CSC890 (maximum allowed).~n', [StudentID]), fail
-        ; Prev890Units + MaxU > 6 ->
-            format('Taking ~w units of CSC890 would exceed the 6-unit limit (currently ~w units taken).~n', [MaxU, Prev890Units]), fail
-        ; true )
-    ; true ),
+        ; true
+    ),
     % If all conditions passed, the student can take the course.
     format('Student ~w can enroll in ~w (section ~w).~n', [StudentID, CourseID, SectionID]).
 
