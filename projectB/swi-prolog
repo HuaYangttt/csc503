@@ -261,11 +261,21 @@ count_theory_course(StudentID, NumTheoryCourses) :-
 
 % count_systems_course(+StudentID, -NumSystemsCourses)
 % Counts how many systems core courses the student has passed with a grade >= B.
-count_systems_course(StudentID, NumSystemsCourses) :-
+count_systems_course(StudentID, UniqueSystemsCourses, NumSystemsCourses) :-
     findall(C, 
             (hasTakenCourse(StudentID, C, _Sect, _Units, Grade), is_systems_course(C), Grade >= 75), 
             SystemsCourses),
     sort(SystemsCourses, UniqueSystemsCourses),
+    (   member(csc720, AllUniqueCourses),
+        member(csc520, AllUniqueCourses)
+    ->  select(csc720, AllUniqueCourses, Temp1)
+    ;   Temp1 = AllUniqueCourses
+    ),
+    (   member(csc573, Temp1),
+        member(csc570, Temp1)
+    ->  select(csc573, Temp1, UniqueSystemsCourses)
+    ;   UniqueSystemsCourses = Temp1
+    ),
     length(UniqueSystemsCourses, NumSystemsCourses).
 
 % units_csc500or700_course(+StudentID, -TotalUnits)
