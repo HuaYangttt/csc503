@@ -96,7 +96,7 @@ currentCourse('csc591','s028',1,6,'bavg').
 
 % is_passing_grade(+Grade)/1
 % Checks if the numeric grade is a passing grade (75 or above, which corresponds roughly to a B or better).
-is_passing_grade(G) :- number(G), G >= 75.
+is_passing_grade(G) :- (number(G), G >= 75); Grade == pass.
 
 % is_400_course(+CourseID)/1
 % True if CourseID is a 400-level course (course number between 400 and 499).
@@ -190,12 +190,15 @@ list_taken_courses(ListTakenCourseIDs, StudentID) :-
 % Computes the average numeric grade of the StudentID over the given list of CourseIDs.
 % The GPA returned is the arithmetic mean of the numeric grades for those courses.
 student_gpa(StudentID, CourseIDs, GPA) :-
-    findall(Grade, 
-            (member(C, CourseIDs), hasTakenCourse(StudentID, C, _Section, _Units, Grade)), 
-            Grades),
-    Grades \= [],
-    sum_list(Grades, Sum),
-    length(Grades, Count),
+    findall(Numeric,
+        (member(C, CourseIDs),
+         hasTakenCourse(StudentID, C, _Section, _Units, Grade),
+         number(Grade),
+         Numeric = Grade),
+        NumericGrades),
+    NumericGrades \= [],
+    sum_list(NumericGrades, Sum),
+    length(NumericGrades, Count),
     GPA is Sum / Count.
 
 % meet_prerequisite(+StudentID, +CourseID, +MinGrade)
