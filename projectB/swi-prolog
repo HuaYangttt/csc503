@@ -261,22 +261,21 @@ count_theory_course(StudentID, NumTheoryCourses) :-
 
 % count_systems_course(+StudentID, -NumSystemsCourses)
 % Counts how many systems core courses the student has passed with a grade >= B.
-count_systems_course(StudentID, UniqueSystemsCourses, NumSystemsCourses) :-
+count_systems_course(StudentID, NumSystemsCourses) :-
     findall(C, 
             (hasTakenCourse(StudentID, C, _Sect, _Units, Grade), is_systems_course(C), Grade >= 75), 
             SystemsCourses),
-    sort(SystemsCourses, UniqueSystemsCourses),
-    (   member(csc720, AllUniqueCourses),
-        member(csc520, AllUniqueCourses)
-    ->  select(csc720, AllUniqueCourses, Temp1)
-    ;   Temp1 = AllUniqueCourses
-    ),
-    (   member(csc573, Temp1),
-        member(csc570, Temp1)
-    ->  select(csc573, Temp1, UniqueSystemsCourses)
-    ;   UniqueSystemsCourses = Temp1
-    ),
+    sort(SystemsCourses, S0),
+    normalize_subs(S0, UniqueSystemsCourses),
     length(UniqueSystemsCourses, NumSystemsCourses).
+
+normalize_subs(S0, S) :-
+    ( ord_memberchk(csc720, S0), ord_memberchk(csc520, S0)
+      -> ord_del_element(S0, csc720, S1)
+      ;  S1 = S0 ),
+    ( ord_memberchk(csc573, S1), ord_memberchk(csc570, S1)
+      -> ord_del_element(S1, csc573, S)
+      ;  S = S1 ).
 
 % units_csc500or700_course(+StudentID, -TotalUnits)
 % Sums the total units of CSC 500- or 700-level courses the student has taken (with at most 4 courses of CSC591/CSC791 counted).
