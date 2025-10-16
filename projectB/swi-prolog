@@ -11,42 +11,6 @@
 % planOfGraduateWorkApproved(StudentID)/1
 
 % Outcome is pass or fail 
-
-% test query
-% canGraduate(StudentID,Program)
-% hasToBeTerminated(StudentID,Program)
-% whyCanOrCannotTake(StudentID,CourseID,SectionID)
-% recommendSemesterWork(StudentID,Program)
-
-registrationSemester(s001, msc, fall, 2023, yes).
-registrationSemester(s001, msc, spring, 2024, no).
-registrationSemester(s001, msc, fall, 2024, no).
-registrationSemester(s001, msc, spring, 2025, no).
-
-% Fall 2023
-% Orientation course
-hasTakenCourse(s001, csc600, s001, 1, 75).
-% Theory core
-hasTakenCourse(s001, csc570, s001, 3, 90).  
-% Systems core
-hasTakenCourse(s001, csc501, s001, 3, 99).  
-hasTakenCourse(s001, csc540, s001, 3, 95).  
-
-
-% Spring 2024  
-hasTakenCourse(s001, csc561, s001, 3, 92).  
-hasTakenCourse(s001, csc565, s001, 3, 92). 
-% Fall 2024
-hasTakenCourse(s001, csc591, s001, 3, 95).   
-hasTakenCourse(s001, csc591, s001, 3, 96).  
-% Spring 2025 
-hasTakenCourse(s001, csc791, s001, 3, 95). 
-hasTakenCourse(s001, csc591, s001, 3, 95).
-
-% Advisor
-graduateAdvisor(s001, f001, msc).
-facultyAffiliation(f001, csc).
-
 % current course offerings (CourseNumber, Section, MinUnits, MaxUnits, Prerequisite)
 currentCourse('csc885','s001',1,3,'phd').
 currentCourse('csc501','s001',3,3,'csc246').
@@ -125,7 +89,10 @@ currentCourse('csc591','s028',1,6,'bavg').
 
 % is_passing_grade(+Grade)/1
 % Checks if the numeric grade is a passing grade (75 or above, which corresponds roughly to a B or better).
-is_passing_grade(G) :- (number(G), G >= 75); Grade == pass.
+is_passing_grade(G) :-
+    (number(G), G >= 75);
+    G == pass.
+
 
 % is_400_course(+CourseID)/1
 % True if CourseID is a 400-level course (course number between 400 and 499).
@@ -765,4 +732,3 @@ recommendSemesterWork(StudentID, phd) :-
                 \+ hasTakenCourse(StudentID, C, _, _, _)),
                format('  ~w~n', [C]))
     ; true ).
-
