@@ -491,57 +491,81 @@ hasToBeTerminated(StudentID, msc) :-
 % - Failing to pass the Oral Preliminary exam within 6 years from admission.
 % - Failing to complete all requirements within 10 years from admission.
 % - Accumulating 18 or more graduate credit hours with GPA below 3.0.
+% Returns all reasons why a PhD student must be terminated
 hasToBeTerminated(StudentID, phd) :-
     registrationSemester(StudentID, Program, _SemStart, YearStart, IsFirst),
-    Program == 'phd', IsFirst == 'yes',
-    (
-      % Not passing Oral Prelim within 6 years of start
-      (YearStart =< 2019,
-       \+ (phdOralExamTaken(StudentID, _Sem, _Yr, Outcome), Outcome == 'pass'))
-      ;
-      % Not finishing within 10 years of start
-      (YearStart =< 2015)
-      ;
-      % GPA below 3.0 after attempting 18 or more credits
-      (findall(U, (hasTakenCourse(StudentID, _CID, _Sect, U, Grade), number(Grade)), UnitsList),
-       sum_list(UnitsList, SumUnits), SumUnits >= 18,
-       list_taken_courses(TakenList, StudentID), TakenList \= [],
-       student_gpa(StudentID, TakenList, GPA), GPA < 75)
+    Program == 'phd', IsFirst == 'yes', !,
+    findall(Reason,
+        (
+            (
+                YearStart =< 2019,
+                \+ (phdOralExamTaken(StudentID, _Sem, _Yr, Outcome), Outcome == 'pass'),
+                Reason = 'Failed to pass Oral Preliminary Exam within 6 years'
+            );
+            (
+                YearStart =< 2015,
+                Reason = 'Exceeded 10-year time limit for PhD completion'
+            );
+            (
+                findall(U, (hasTakenCourse(StudentID, _CID, _Sect, U, Grade), number(Grade)), UnitsList),
+                sum_list(UnitsList, SumUnits), SumUnits >= 18,
+                list_taken_courses(TakenList, StudentID), TakenList \= [],
+                student_gpa(StudentID, TakenList, GPA), GPA < 75,
+                Reason = 'Accumulated >=18 credits with GPA below 3.0'
+            )
+        ),
+        Reasons
+    ),
+    ( Reasons \= [] ->
+        format('Student ~w must be terminated for the following reason(s):~n', [StudentID]),
+        forall(member(R, Reasons), format('- ~w~n', [R]))
+    ;
+        format('Student ~w is in good standing (no termination criteria met).~n', [StudentID]), fail
     ).
 
 % whyCanOrCannotTake(+StudentID, +CourseID, +SectionID)
 % Checks whether a student can take a given course section and explains the reasons why or why not.
 whyCanOrCannotTake(StudentID, CourseID, SectionID) :-
-    % 1. Check if the student is registered in Fall 2025.
-    ( registrationSemester(StudentID, Program, fall, 2025, _) ->
-        true
-    ;   format('Student ~w is not registered for Fall 2025.~n', [StudentID]), fail
-    ),
-    registrationSemester(StudentID, Program, 'fall', 2025, _),
-    % 2. Check if the course section is offered in Fall 2025.
-    ( \+ currentCourse(CourseID, SectionID, MinU, MaxU, Prereq) ->
-        format('Course ~w section ~w is not offered in Fall 2025.~n', [CourseID, SectionID]), fail
-    ; true ),
-    currentCourse(CourseID, SectionID, MinU, MaxU, Prereq),
-    % 3. Check if prerequisites are satisfied.
-    ( \+ meet_prerequisite(StudentID, Prereq) ->
-        format('Student ~w does not meet prerequisite ~w for course ~w.~n', [StudentID, Prereq, CourseID]), fail
-    ; true ),
-    % 4. Check if the student has already taken this course.
-    ( hasTakenCourse(StudentID, CourseID, _SectTaken, _UnitsTaken, _GradeTaken) ->
-        ( Program == 'phd', is_800_course(CourseID) ->
-              true    % PhD students may repeat 800-level research courses
-        ;   format('Student ~w has already taken course ~w before.~n', [StudentID, CourseID]), fail
+    findall(Reason, (
+        (
+            % 1. Not registered
+            \+ registrationSemester(StudentID, _, fall, 2025, _),
+            format(atom(Reason), 'Student ~w is not registered for Fall 2025', [StudentID])
+        );
+        (
+            % 2. Course not offered
+            \+ currentCourse(CourseID, SectionID, _, _, _),
+            format(atom(Reason), 'Course ~w section ~w is not offered in Fall 2025', [CourseID, SectionID])
+        );
+        (
+            % 3. Prerequisite not met
+            currentCourse(CourseID, SectionID, _, _, Prereq),
+            \+ meet_prerequisite(StudentID, Prereq),
+            format(atom(Reason), 'Prerequisite ~w for ~w not met by student ~w', [Prereq, CourseID, StudentID])
+        );
+        (
+            % 4. Already taken (except PhD 800)
+            registrationSemester(StudentID, Program, _, _, _),
+            hasTakenCourse(StudentID, CourseID, _, _, _),
+            \+ (Program == 'phd', is_800_course(CourseID)),
+            format(atom(Reason), 'Student ~w has already taken course ~w', [StudentID, CourseID])
+        );
+        (
+            % 5. Exceeds unit limit
+            currentCourse(CourseID, SectionID, _, MaxU, _),
+            MaxU > 12,
+            format(atom(Reason), 'Course ~w exceeds 12-unit per semester limit (~w units)', [CourseID, MaxU])
         )
-    ; true ),
-    % 5. Check credit load constraints.
-    ( % PhD/MSc students can take up to 12 units per semester.
-        MaxU > 12 ->
-            format('Course ~w is ~w units, exceeding the 12-unit per semester limit.~n', [CourseID, MaxU]), fail
-        ; true
-    ),
-    % If all conditions passed, the student can take the course.
-    format('Student ~w can enroll in ~w (section ~w).~n', [StudentID, CourseID, SectionID]).
+    ), Reasons),
+
+    ( Reasons = [] ->
+    format('Student ~w can enroll in ~w (section ~w).~n', [StudentID, CourseID, SectionID])
+;
+    format('Student ~w cannot enroll in ~w (section ~w) because:~n', [StudentID, CourseID, SectionID]),
+    sort(Reasons, UniqueReasons),
+    forall(member(R, UniqueReasons), format('- ~w~n', [R])),
+    fail
+).
 
 % recommendSemesterWork(+StudentID, +Program)
 recommendSemesterWork(StudentID, msc) :-
