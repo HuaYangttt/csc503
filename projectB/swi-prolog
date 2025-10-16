@@ -42,12 +42,13 @@ hasTakenCourse(s001, csc574, s001, 3, 95).
 hasTakenCourse(s001, csc514, s001, 3, 96).
 hasTakenCourse(s001, csc579, s001, 3, 93).  
 % Spring 2025
-hasTakenCourse(s001, csc580, s001, 3, 97).  
-hasTakenCourse(s001, csc707, s001, 3, 95). 
+hasTakenCourse(s001, csc630, s001, 3, 97).  
+hasTakenCourse(s001, csc791, s001, 3, 95). 
 hasTakenCourse(s001, csc591, s001, 3, 95).
 
 % Advisor
 graduateAdvisor(s001, f001, msc).
+facultyAffiliation(f001, csc).
 
 % current course offerings (CourseNumber, Section, MinUnits, MaxUnits, Prerequisite)
 currentCourse('csc885','s001',1,3,'phd').
@@ -208,13 +209,12 @@ is_not_st511orother591orother791(CourseID) :-
 % Retrieves a sorted list of all CourseIDs offered in the current semester (from currentCourse facts).
 list_current_courses(ListCurrentCourseIDs) :-
     findall(CourseID, currentCourse(CourseID, _, _, _, _), CourseList),
-    sort(CourseList, ListCurrentCourseIDs).
+    msort(CourseList, ListCurrentCourseIDs).
 
 % list_taken_courses(-ListTakenCourseIDs, +StudentID)
-% Retrieves a sorted list of all CourseIDs that the student has taken (which also appear in the current course list).
+% Retrieves a sorted list of all CourseIDs that the student has taken.
 list_taken_courses(ListTakenCourseIDs, StudentID) :-
-    list_current_courses(AllCourses),
-    findall(CID, (hasTakenCourse(StudentID, CID, _Section, _Units, _Grade), member(CID, AllCourses)), Courses),
+    findall(CID, hasTakenCourse(StudentID, CID, _Section, _Units, _Grade), Courses),
     sort(Courses, ListTakenCourseIDs).
 
 % student_gpa(+StudentID, +CourseIDs, -GPA)
@@ -322,7 +322,7 @@ units_csc500or700_course(StudentID, TotalUnits) :-
             (hasTakenCourse(StudentID, CID, _Sect, Units, _Grade), 
              (CID == 'csc591'; CID == 'csc791')), 
             SpecialUnitsList),
-    sort(SpecialUnitsList, SortedSpecial),   % sort units in ascending order
+    msort(SpecialUnitsList, SortedSpecial),   % sort units in ascending order
     length(SortedSpecial, CountSpecial),
     ( CountSpecial > 4 ->
         % If more than 4 special topic courses, only count the 4 with highest units.
@@ -345,12 +345,12 @@ units_all_electives_course(StudentID, TotalUnits) :-
              is_not_st511orother591orother791(CID)),
             UnitsListRegular),
     sum_list(UnitsListRegular, SumRegular),
-    % Collect units of all CSC591/CSC791 courses taken (special topics in CSC).
+    % Collect units of all CSC591/CSC791 courses taken (special topics in CSC) (maximum 4).
     findall(Units,
             (hasTakenCourse(StudentID, CID, _Sect, Units, _Grade),
              (CID == 'csc591'; CID == 'csc791')),
             SpecialUnitsList),
-    sort(SpecialUnitsList, SortedSpecial),
+    msort(SpecialUnitsList, SortedSpecial),
     length(SortedSpecial, CountSpecial),
     ( CountSpecial > 4 ->
         DropCount is CountSpecial - 4,
@@ -360,7 +360,49 @@ units_all_electives_course(StudentID, TotalUnits) :-
     ;
         sum_list(SortedSpecial, SumSpecialLimited)
     ),
-    TotalUnits is SumRegular + SumSpecialLimited.
+    % Collect units of all CSC630 courses taken (maximum 3)
+    findall(Units,
+            hasTakenCourse(StudentID, 'csc630', _Sect, Units, _Grade),
+            CSC630UnitsList),
+    sum_list(CSC630UnitsList, SumCSC630Raw),
+    ( SumCSC630Raw > 3 -> SumCSC630 = 3 ; SumCSC630 = SumCSC630Raw ),
+    TotalUnits is SumRegular + SumSpecialLimited + SumCSC630.
+
+% all_csc_courses_above_500(+StudentID)
+all_csc_courses_above_500(StudentID) :-
+    % Collect all CSC courses the student has taken.
+    findall(CID,
+            ( hasTakenCourse(StudentID, CID, _Sect, _Units, _Grade),
+              is_csc_course(CID)
+            ),
+            CSCCourses),
+    % Ensure every CSC course number is >= 500.
+    forall(
+        member(CID, CSCCourses),
+        (
+            % Extract the numeric part after "csc"
+            atom_concat('csc', NumAtom, CID),
+            atom_number(NumAtom, Num),
+            % Verify course number is 500 or higher
+            Num >= 500
+        )
+    ).
+
+% csc630_requires_csc_faculty_advisor(+StudentID)
+csc630_requires_csc_faculty_advisor(StudentID) :-
+    (   % If CSC630 is taken, enforce advisor constraint
+        hasTakenCourse(StudentID, 'csc630', _Sect, _Units, _Grade)
+    ->  % First, check that required predicates exist
+        predicate_property(graduateAdvisor(_,_,_), defined),
+        predicate_property(facultyAffiliation(_,_), defined),
+        % Now safely check the conditions
+        graduateAdvisor(StudentID, Advisor, Program),
+        Program == 'msc',
+        facultyAffiliation(Advisor, Dept),
+        Dept == 'csc'
+    ;   % If CSC630 is not taken, succeed automatically
+        true
+    ).
 
 % units_csc_elective_research_phd(+StudentID, -TotalUnits)
 % Sums the total units of CSC elective and research courses the PhD student has taken (at least 47 required, with special topic and csc890 limits).
@@ -412,12 +454,14 @@ canGraduate(StudentID, msc) :-
     units_csc500or700_course(StudentID, UnitsCSC),
     UnitsCSC >= 21,
     % 4. Total electives: at least 30 units of graduate-level courses (500/700-level, excluding ST511 and outside 591/791, max 4 special topics).
-    units_all_electives_course(StudentID, UnitsAll), % 缺少max 4 special topics count，缺CSC判断，缺csc630判断
+    units_all_electives_course(StudentID, UnitsAll),
     UnitsAll >= 30,
-    % 缺csc above 500判断
-    % 缺630
-    % 5. Overall GPA on all taken courses >= 3.0.
-    list_taken_courses(TakenCourses, StudentID), % 不应该只关心current course，学生还可能修过课表没有的
+    % 5. All CSC courses must be 500 level or above.
+    all_csc_courses_above_500(StudentID),
+    % 6. If CSC630 is taken, student must have a CSC faculty advisor (MSC program).
+    csc630_requires_csc_faculty_advisor(StudentID),
+    % 7. Overall GPA on all taken courses >= 3.0.
+    list_taken_courses(TakenCourses, StudentID),
     TakenCourses \= [], 
     student_gpa(StudentID, TakenCourses, GPA),
     GPA >= 75.
