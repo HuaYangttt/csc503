@@ -33,16 +33,13 @@ hasTakenCourse(s001, csc501, s001, 3, 99).
 hasTakenCourse(s001, csc540, s001, 3, 95).  
 
 
-% Spring 2024
-hasTakenCourse(s001, csc573, s001, 3, 95).   
+% Spring 2024  
 hasTakenCourse(s001, csc561, s001, 3, 92).  
 hasTakenCourse(s001, csc565, s001, 3, 92). 
 % Fall 2024
-hasTakenCourse(s001, csc574, s001, 3, 95).   
-hasTakenCourse(s001, csc514, s001, 3, 96).
-hasTakenCourse(s001, csc579, s001, 3, 93).  
-% Spring 2025
-hasTakenCourse(s001, csc630, s001, 3, 97).  
+hasTakenCourse(s001, csc591, s001, 3, 95).   
+hasTakenCourse(s001, csc591, s001, 3, 96).  
+% Spring 2025 
 hasTakenCourse(s001, csc791, s001, 3, 95). 
 hasTakenCourse(s001, csc591, s001, 3, 95).
 
@@ -580,52 +577,137 @@ whyCanOrCannotTake(StudentID, CourseID, SectionID) :-
     format('Student ~w can enroll in ~w (section ~w).~n', [StudentID, CourseID, SectionID]).
 
 % recommendSemesterWork(+StudentID, +Program)
-
 recommendSemesterWork(StudentID, msc) :-
     format('Recommendations for MSc student ~w:~n', [StudentID]),
+    (   % 1) 已达毕业要求：只打印说明，不推荐
+        canGraduate(StudentID, msc)
+    ->  format('All MSc requirements are satisfied. No further courses recommended.~n', [])
+    ;   % 2) 未达毕业要求：生成推荐列表（按规则过滤）
+        % 2.1 统计已修 special topics (csc591/csc791) 的门数
+        findall(1,
+                ( hasTakenCourse(StudentID, CID, _S, _U, _G),
+                  (CID == 'csc591' ; CID == 'csc791')
+                ),
+                SpecialOnes),
+        length(SpecialOnes, NumSpecialTaken),
 
-    % 1. CSC600
-    ( \+ (hasTakenCourse(StudentID, 'csc600', _, _, Grade600), is_passing_grade(Grade600)) ->
-        format('- Take CSC600 (Graduate Orientation Seminar).~n', [])
-    ; true ),
+        % 2.2 统计已修 csc630 的总学分
+        findall(U,
+                hasTakenCourse(StudentID, 'csc630', _S, U, _G),
+                U630s),
+        (   U630s == [] -> Sum630 is 0
+        ;   sum_list(U630s, Sum630)
+        ),
 
-    % 2. Core courses
-    count_theory_course(StudentID, NumTheory),
-    count_systems_course(StudentID, NumSys),
-    TotalCore is NumTheory + NumSys,
-    ( NumTheory < 1 ->
-        format('- Need at least one Theory core course. Available:~n', []),
-        forall((is_theory_course(C), currentCourse(C, _, _, _, _),
-                \+ hasTakenCourse(StudentID, C, _, _, _)),
-               format('  ~w~n', [C]))
-    ; true ),
-    ( TotalCore < 3 ->
-        format('- Need at least 3 total core courses. Systems options:~n', []),
-        forall((is_systems_course(C), currentCourse(C, _, _, _, _),
-                \+ hasTakenCourse(StudentID, C, _, _, _)),
-               format('  ~w~n', [C]))
-    ; true ),
+        % 2.3 按规则推荐：当前开课、未修过、等级在 500/700 段；
+        %     若 NumSpecialTaken > 4 则不推荐 591/791；若 Sum630 > 3 则不推荐 630。
+        %     注意：is_700_course/1 可能不把 791 当作 700 课，这里用单独条件放行/屏蔽 591/791。
+        forall(
+            ( currentCourse(C, Sect, _, _, _),
+              within_500_to_799(C),                  % 只留 500–799 级
+              not_taken_for_recommendation(StudentID, C, Sect),  % 591/791 按 section 排除；630 不排；其它按课号排
+              allow_591_791(C, NumSpecialTaken),     % >=4 门已修则不推荐 591/791
+              allow_630(C, Sum630)                   % >=3 学分已修则不推荐 630
+            ),
+            format('  ~w (~w)~n', [C, Sect])
+        )
+    ).
 
-    % 3. CSC 500/700 electives
-    units_csc500or700_course(StudentID, UnitsCSC),
-    ( UnitsCSC < 21 ->
-        format('- Need more CSC 500/700 electives. Options:~n', []),
-        forall((currentCourse(C, _, _, _, _),
-                (is_500_course(C); is_700_course(C)),
-                \+ hasTakenCourse(StudentID, C, _, _, _)),
-               format('  ~w~n', [C]))
-    ; true ),
+within_500_to_799(CID) :-
+    atom_concat('csc', NumAtom, CID),
+    atom_number(NumAtom, Num),
+    Num >= 500, Num < 800.
 
-    % 4. Total electives
-    units_all_electives_course(StudentID, UnitsAll),
-    ( UnitsAll < 30 ->
-        format('- Need more total electives (>=30 units). Options:~n', []),
-        forall((currentCourse(C, _, _, _, _),
-                (is_500_course(C); is_700_course(C)),
-                is_not_st511orother591orother791(C),
-                \+ hasTakenCourse(StudentID, C, _, _, _)),
-               format('  ~w~n', [C]))
-    ; true ).
+not_taken_for_recommendation(StudentID, CID, Sect) :-
+    ( CID == 'csc591' ; CID == 'csc791' ) ->
+        \+ hasTakenCourse(StudentID, CID, Sect, _, _)
+    ; CID == 'csc630' ->
+        true
+    ; \+ hasTakenCourse(StudentID, CID, _, _, _).
+
+% 若你的 is_700_course/1 排除了 791，这里不影响，因为 591/791 的放行由 allow_591_791/2 单独控制。
+level_500_or_700(CID) :-
+    ( is_500_course(CID) ; is_700_course(CID) ; CID == 'csc591' ; CID == 'csc791' ).
+
+% allow_591_791(+CID, +NumSpecialTaken): 若已修 special(591/791) >= 4门，则不再推荐 591/791
+allow_591_791(CID, NumSpecialTaken) :-
+    ( CID == 'csc591' ; CID == 'csc791' )
+    -> NumSpecialTaken < 4
+    ;  true.
+
+% allow_630(+CID, +Sum630Units): 若已修 csc630 学分 >= 3，则不再推荐 csc630
+allow_630(CID, Sum630Units) :-
+    ( CID == 'csc630' )
+    -> Sum630Units < 3
+    ;  true.
+
+% recommendSemesterWork(StudentID, msc) :-
+%     format('Recommendations for MSc student ~w:~n', [StudentID]),
+
+%     % 1. CSC600
+%     ( \+ (hasTakenCourse(StudentID, 'csc600', _, _, Grade600), is_passing_grade(Grade600)) ->
+%         format('- Take CSC600 (Graduate Orientation Seminar).~n', [])
+%     ; true ),
+
+%     % 2. Core courses
+%     count_theory_course(StudentID, NumTheory),
+%     count_systems_course(StudentID, NumSys),
+%     TotalCore is NumTheory + NumSys,
+%     ( NumTheory < 1 ->
+%         format('- Need at least one Theory core course. Available:~n', []),
+%         forall((is_theory_course(C), currentCourse(C, _, _, _, _),
+%                 \+ hasTakenCourse(StudentID, C, _, _, _)),
+%                format('  ~w~n', [C]))
+%     ; true ),
+%     ( NumSys < 1 ->
+%         format('- Need at least one System core course. Available:~n', []),
+%         forall((is_systems_course(C), currentCourse(C, _, _, _, _),
+%                 \+ hasTakenCourse(StudentID, C, _, _, _)),
+%                format('  ~w~n', [C]))
+%     ; true ),
+%     ( TotalCore < 3 ->
+%         Need is 3 - TotalCore,
+%         format('- Need at least 3 total core courses (still need ~d).~n', [Need]),
+%         format('  Theory options:~n', []),
+%         forall(( is_theory_course(CT),
+%                  currentCourse(CT, _, _, _, _),
+%                  \+ hasTakenCourse(StudentID, CT, _, _, _) ),
+%                format('    ~w~n', [CT])),
+%         format('  Systems options:~n', []),
+%         forall(( is_systems_course(CS),
+%                  currentCourse(CS, _, _, _, _),
+%                  \+ hasTakenCourse(StudentID, CS, _, _, _) ),
+%                format('    ~w~n', [CS]))
+%     ; true).
+
+%     % 3. CSC 500/700 electives
+%     units_csc500or700_course(StudentID, UnitsCSC),
+%     ( UnitsCSC < 21 ->
+%         format('- Need more CSC 500/700 electives. Options:~n', []),
+%         forall((currentCourse(C, _, _, _, _),
+%                 (is_500_course(C); is_700_course(C)),
+%                 \+ hasTakenCourse(StudentID, C, _, _, _)),
+%                format('  ~w~n', [C]))
+%     ; true ),
+
+%     % 4. Total electives
+%     units_all_electives_course(StudentID, UnitsAll),
+%     ( UnitsAll < 30 ->
+%         format('- Need more total electives (>=30 units). Options:~n', []),
+%         forall((currentCourse(C, _, _, _, _),
+%                 (is_500_course(C); is_700_course(C)),
+%                 is_not_st511orother591orother791(C),
+%                 \+ hasTakenCourse(StudentID, C, _, _, _)),
+%                format('  ~w~n', [C]))
+%     ; true ).
+%     % Summary message
+%     ( UnitsAll >= 30,
+%       UnitsCSC >= 21,
+%       TotalCore >= 3,
+%       NumTheory >= 1,
+%       NumSys >= 1
+%     -> format('All MSc course and unit requirements are satisfied. Great work!~n', [])
+%     ;  true ).
 
 recommendSemesterWork(StudentID, phd) :-
     format('Recommendations for PhD student ~w:~n', [StudentID]),
