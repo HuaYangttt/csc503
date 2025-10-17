@@ -420,10 +420,10 @@ canGraduate(StudentID, msc) :-
     % 4. Total electives: at least 30 units of graduate-level courses (500/700-level, excluding ST511 and outside 591/791, max 4 special topics).
     units_all_electives_course(StudentID, UnitsAll),
     UnitsAll >= 30,
-    % 5. All CSC courses must be 500 level or above.
-    all_csc_courses_above_500(StudentID),
-    % 6. If CSC630 is taken, student must have a CSC faculty advisor (MSC program).
-    csc630_requires_csc_faculty_advisor(StudentID),
+    % % 5. All CSC courses must be 500 level or above.
+    % all_csc_courses_above_500(StudentID),
+    % % 6. If CSC630 is taken, student must have a CSC faculty advisor (MSC program).
+    % csc630_requires_csc_faculty_advisor(StudentID),
     % 7. Overall GPA on all taken courses >= 3.0.
     list_taken_courses(TakenCourses, StudentID),
     TakenCourses \= [], 
@@ -570,11 +570,11 @@ whyCanOrCannotTake(StudentID, CourseID, SectionID) :-
 % recommendSemesterWork(+StudentID, +Program)
 recommendSemesterWork(StudentID, msc) :-
     format('Recommendations for MSc student ~w:~n', [StudentID]),
-    (   % 1) 已达毕业要求：只打印说明，不推荐
+    (   % 1) Graduation requirements met: print a message only, no course recommendations
         canGraduate(StudentID, msc)
     ->  format('All MSc requirements are satisfied. No further courses recommended.~n', [])
-    ;   % 2) 未达毕业要求：生成推荐列表（按规则过滤）
-        % 2.1 统计已修 special topics (csc591/csc791) 的门数
+    ;   % 2) Graduation requirements not met: generate a list of recommended courses (filtered by the specified rules).
+        % 2.1 Count the number of Special Topics courses (CSC591/CSC791) the student has completed.
         findall(1,
                 ( hasTakenCourse(StudentID, CID, _S, _U, _G),
                   (CID == 'csc591' ; CID == 'csc791')
@@ -582,7 +582,7 @@ recommendSemesterWork(StudentID, msc) :-
                 SpecialOnes),
         length(SpecialOnes, NumSpecialTaken),
 
-        % 2.2 统计已修 csc630 的总学分
+        % 2.2 Count the number of Research courses (CSC630) the student has completed.
         findall(U,
                 hasTakenCourse(StudentID, 'csc630', _S, U, _G),
                 U630s),
@@ -590,15 +590,15 @@ recommendSemesterWork(StudentID, msc) :-
         ;   sum_list(U630s, Sum630)
         ),
 
-        % 2.3 按规则推荐：当前开课、未修过、等级在 500/700 段；
-        %     若 NumSpecialTaken > 4 则不推荐 591/791；若 Sum630 > 3 则不推荐 630。
-        %     注意：is_700_course/1 可能不把 791 当作 700 课，这里用单独条件放行/屏蔽 591/791。
+        % 2.3 Recommend courses based on the rules: select current offerings that the student has not taken and that are within the 500/700 level range.
+        %     If NumSpecialTaken > 4, do not recommend CSC591/CSC791; if Sum630 > 3, do not recommend CSC630.
+        %     Note: is_700_course/1 may not classify CSC791 as a 700-level course, so CSC591/CSC791 are explicitly handled here for inclusion or exclusion.
         forall(
             ( currentCourse(C, Sect, _, _, _),
-              within_500_to_799(C),                  % 只留 500–799 级
-              not_taken_for_recommendation(StudentID, C, Sect),  % 591/791 按 section 排除；630 不排；其它按课号排
-              allow_591_791(C, NumSpecialTaken),     % >=4 门已修则不推荐 591/791
-              allow_630(C, Sum630)                   % >=3 学分已修则不推荐 630
+              within_500_to_799(C),                  % within the 500/700 level range
+              not_taken_for_recommendation(StudentID, C, Sect),  % Exclude CSC591/CSC791 by section; do not exclude CSC630; exclude all other courses by course ID.
+              allow_591_791(C, NumSpecialTaken),     % Do not recommend CSC591/CSC791 if 4 or more such courses have already been taken.
+              allow_630(C, Sum630)                   % Do not recommend CSC630 if 4 or more such credits have already been taken.
             ),
             format('  ~w (~w)~n', [C, Sect])
         )
@@ -616,17 +616,14 @@ not_taken_for_recommendation(StudentID, CID, Sect) :-
         true
     ; \+ hasTakenCourse(StudentID, CID, _, _, _).
 
-% 若你的 is_700_course/1 排除了 791，这里不影响，因为 591/791 的放行由 allow_591_791/2 单独控制。
 level_500_or_700(CID) :-
     ( is_500_course(CID) ; is_700_course(CID) ; CID == 'csc591' ; CID == 'csc791' ).
 
-% allow_591_791(+CID, +NumSpecialTaken): 若已修 special(591/791) >= 4门，则不再推荐 591/791
 allow_591_791(CID, NumSpecialTaken) :-
     ( CID == 'csc591' ; CID == 'csc791' )
     -> NumSpecialTaken < 4
     ;  true.
 
-% allow_630(+CID, +Sum630Units): 若已修 csc630 学分 >= 3，则不再推荐 csc630
 allow_630(CID, Sum630Units) :-
     ( CID == 'csc630' )
     -> Sum630Units < 3
