@@ -10,7 +10,7 @@
 % facultyAffiliation(FacultyID,HomeDepartment)/2
 % planOfGraduateWorkApproved(StudentID)/1
 
-% registration history
+% Perfect test case registration history
 registrationSemester(s003, phd, fall, 2020, yes).
 registrationSemester(s003, phd, spring, 2021, no).
 registrationSemester(s003, phd, fall, 2021, no).
@@ -595,13 +595,14 @@ advisory_committee_satisfied(StudentID) :-
     length(OutsideCSCMembers, OutsideCSCCount),
     OutsideCSCCount >= 1.
 % Subgoal 8: Exams satisfied (written, oral, and defense all passed)
+% Subgoal 8: Exams satisfied (written, oral, and defense all passed)
 exams_satisfied(StudentID) :-
     phdWrittenExamTaken(StudentID, _, _, WrittenOutcome),
-    WrittenOutcome == pass,
+    (WrittenOutcome == pass ; (number(WrittenOutcome), WrittenOutcome >= 2.0)),
     phdOralExamTaken(StudentID, _, _, OralOutcome),
-    OralOutcome == pass,
+    (OralOutcome == pass ; (number(OralOutcome), OralOutcome >= 2.0)),
     phdDefenseTaken(StudentID, _, _, DefenseOutcome),
-    DefenseOutcome == pass.
+    (DefenseOutcome == pass ; (number(DefenseOutcome), DefenseOutcome >= 2.0)).
 % Subgoal 9: Overall GPA satisfied (>=83, which is B average or 3.0)
 overall_gpa_satisfied(StudentID) :-
     list_taken_courses(TakenCoursesList, StudentID),
