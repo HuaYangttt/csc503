@@ -1159,17 +1159,20 @@ recommend_exams(StudentID) :-
     % Initialize list of exams needed
     findall(Exam,
             ( (   (\+ phdWrittenExamTaken(StudentID, _, _, _) ; 
-                   (phdWrittenExamTaken(StudentID, _, _, WrittenOutcome), WrittenOutcome \= pass))
+                   (phdWrittenExamTaken(StudentID, _, _, WrittenOutcome), 
+                    \+ (WrittenOutcome == pass ; (number(WrittenOutcome), WrittenOutcome >= 2.0))))
               ->  Exam = 'PhD Written Preliminary Exam'
               ;   fail
               )
             ; (   (\+ phdOralExamTaken(StudentID, _, _, _) ; 
-                   (phdOralExamTaken(StudentID, _, _, OralOutcome), OralOutcome \= pass))
+                   (phdOralExamTaken(StudentID, _, _, OralOutcome), 
+                    \+ (OralOutcome == pass ; (number(OralOutcome), OralOutcome >= 2.0))))
               ->  Exam = 'PhD Oral Preliminary Exam'
               ;   fail
               )
             ; (   (\+ phdDefenseTaken(StudentID, _, _, _) ; 
-                   (phdDefenseTaken(StudentID, _, _, DefenseOutcome), DefenseOutcome \= pass))
+                   (phdDefenseTaken(StudentID, _, _, DefenseOutcome), 
+                    \+ (DefenseOutcome == pass ; (number(DefenseOutcome), DefenseOutcome >= 2.0))))
               ->  Exam = 'PhD Dissertation Defense'
               ;   fail
               )
