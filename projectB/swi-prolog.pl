@@ -554,7 +554,7 @@ hasToBeTerminated(StudentID, msc) :-
     % Assume current year is 2025; if started in YearStart such that YearStart <= 2019, then >6 years have elapsed.
     (YearStart =< 2019 ->
         format('Student ~w has exceeded the 6-year limit (started in ~w).~n', [StudentID, YearStart]),
-        !
+        fail
     ;
         % check continuous enrollment
         forall(
