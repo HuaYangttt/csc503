@@ -10,25 +10,19 @@
 % facultyAffiliation(FacultyID,HomeDepartment)/2
 % planOfGraduateWorkApproved(StudentID)/1
 
-registrationSemester(s001, msc, fall, 2023, yes).
-registrationSemester(s001, msc, spring, 2024, no).
-registrationSemester(s001, msc, fall, 2024, no).
-registrationSemester(s001, msc, spring, 2025, no).
-registrationSemester(s001, msc, fall, 2025, no).
+registrationSemester(s002, msc, fall, 2023, yes).
+registrationSemester(s002, msc, spring, 2024, no).
+registrationSemester(s002, msc, fall, 2024, no).
+registrationSemester(s002, msc, spring, 2025, no).
+registrationSemester(s002, msc, fall, 2025, no).
 
-hasTakenCourse(s001, csc600, s001, 1, 3.333).
-hasTakenCourse(s001, csc505, s001, 3, 4.0).
-hasTakenCourse(s001, csc501, s001, 3, 4.0).
-hasTakenCourse(s001, csc540, s001, 3, 4.0).
-hasTakenCourse(s001, csc520, s001, 3, 4.0).
-hasTakenCourse(s001, csc561, s001, 3, 4.0).
-hasTakenCourse(s001, csc565, s001, 3, 4.0).
-hasTakenCourse(s001, csc574, s001, 3, 4.0).
-hasTakenCourse(s001, csc514, s001, 3, 4.0).
-hasTakenCourse(s001, csc579, s001, 3, 4.0).
-hasTakenCourse(s001, csc580, s001, 3, 4.0).
-hasTakenCourse(s001, csc707, s001, 3, 4.0).
-hasTakenCourse(s001, csc591, s001, 3, 4.0).
+hasTakenCourse(s002, csc600, s001, 1, 3.3).
+hasTakenCourse(s002, csc503, s001, 3, 3.3).
+hasTakenCourse(s002, csc501, s001, 3, 3.0).
+hasTakenCourse(s002, csc565, s001, 3, 2.7).
+hasTakenCourse(s002, csc579, s001, 3, 2.7).
+hasTakenCourse(s002, csc630, s001, 3, 3.0).
+hasTakenCourse(s002, csc580, s001, 3, 3.0).
 
 % Outcome is pass or fail 
 % current course offerings (CourseNumber, Section, MinUnits, MaxUnits, Prerequisite)
@@ -426,29 +420,42 @@ units_csc_elective_research_phd(StudentID, TotalUnits) :-
 % MSC program graduation requirements
 canGraduate(StudentID, msc) :-
     % 1. Must pass CSC600 (Graduate Orientation).
-    hasTakenCourse(StudentID, 'csc600', _Sect, _Units, G600),
-    is_passing_grade(G600),
+    ( hasTakenCourse(StudentID, 'csc600', _Sect, _Units, G600),
+      is_passing_grade(G600)
+    -> true
+    ;  format('Fail: Must pass CSC600 (Graduate Orientation).~n', []), fail ),
     % 2. Core courses: at least 3 core courses total, with at least 1 theory core course.
     count_theory_course(StudentID, NumTheory), 
     count_systems_course(StudentID, NumSystems),
     TotalCore is NumTheory + NumSystems,
-    TotalCore >= 3, NumTheory >= 1, NumSystems >= 1,
+    ( NumTheory >= 1
+    -> true
+    ;  format('Fail: Need at least one Theory core course (current theory = ~w).~n', [NumTheory]), fail ),
+    ( NumSystems >= 1
+    -> true
+    ;  format('Fail: Need at least one Systems core course (current systems = ~w).~n', [NumSystems]), fail ),
+    ( TotalCore >= 3
+    -> true
+    ;  format('Fail: Need at least 3 total core courses (current total core = ~w).~n', [TotalCore]), fail ),
     % 3. CSC elective courses: at least 21 units of CSC 500- or 700-level coursework (max 4 special topics count).
     units_csc500or700_course(StudentID, UnitsCSC),
-    UnitsCSC >= 21,
+    ( UnitsCSC >= 21
+    -> true
+    ;  format('Fail: Need at least 21 units of CSC 500/700 electives (current = ~w).~n', [UnitsCSC]), fail ),
     % 4. Total electives: at least 30 units of graduate-level courses (500/700-level, excluding ST511 and outside 591/791, max 4 special topics).
     units_all_electives_course(StudentID, UnitsAll),
-    UnitsAll >= 30,
-    % % 5. All CSC courses must be 500 level or above.
-    % all_csc_courses_above_500(StudentID),
-    % % 6. If CSC630 is taken, student must have a CSC faculty advisor (MSC program).
-    % csc630_requires_csc_faculty_advisor(StudentID),
-    % 7. Overall GPA on all taken courses >= 3.0.
+    ( UnitsAll >= 30
+    -> true
+    ;  format('Fail: Need at least 30 total graduate elective units (current = ~w).~n', [UnitsAll]), fail ),
+    % 5. Overall GPA on all taken courses >= 3.0.
     list_taken_courses(TakenCourses, StudentID),
-    TakenCourses \= [], 
+    ( TakenCourses \= []
+    -> true
+    ;  format('Fail: No completed courses found to compute GPA.~n', []), fail ),
     student_gpa(StudentID, TakenCourses, GPA),
-    GPA >= 3.0.
-
+    ( GPA >= 2.0
+    -> true
+    ;  format('Fail: Overall GPA must be >= 2.0 (current = ~1f).~n', [GPA]), fail ).
 
 
 % Subgoal 1: Orientation satisfied (CSC600 with passing grade)
@@ -562,34 +569,57 @@ canGraduate(StudentID, phd) :-
 
 
 % hasToBeTerminated(+StudentID, +Program)
-% Succeeds if the student should be terminated from the program (due to time/GPA constraints).
+% Succeeds if the student should be terminated from the program (due to time constraints).
+current_semester(fall, 2025).
 
-% Termination criteria for MSC:
-% - Not completing the degree within 6 calendar years of starting the program.
-% - Not continuous enrollment.
-hasToBeTerminated(StudentID, msc) :-
-    registrationSemester(StudentID, Program, _SemStart, YearStart, IsFirst),
-    Program == 'msc', IsFirst == 'yes',
-    % Assume current year is 2025; if started in YearStart such that YearStart <= 2019, then >6 years have elapsed.
-    (YearStart =< 2019 ->
-        format('Student ~w has exceeded the 6-year limit (started in ~w).~n', [StudentID, YearStart]),
-        fail
-    ;
-        % check continuous enrollment
-        forall(
-            ( member(Sem, [fall, spring]),
-              between(YearStart, 2025, Y)
-            ),
-            (
-                ( registrationSemester(StudentID, Program, Sem, Y, _) ->
-                    true
-                ;
-                    format('Student ~w missing enrollment in ~w ~w.~n', [StudentID, Sem, Y]),
-                    fail
-                )
-            )
-        )
+sem_index(spring, 0).
+sem_index(fall,   1).
+
+next_term(spring, Y, fall,  Y).
+next_term(fall,   Y, spring, Y1) :- Y1 is Y + 1.
+
+term_seq(Sem0, Y0, SemC, YC, Sem0, Y0).
+term_seq(Sem0, Y0, SemC, YC, Sem,  Y) :-
+    ( Sem0 = SemC, Y0 = YC -> fail
+    ; next_term(Sem0, Y0, S1, Y1),
+      ( Sem = S1, Y = Y1
+      ; term_seq(S1, Y1, SemC, YC, Sem, Y)
+      )
     ).
+
+over_six_years_msc(StudentID) :-
+    registrationSemester(StudentID, msc, Sem0, Y0, yes),
+    current_semester(SemC, YC),
+    Delta is YC - Y0,
+    (  Delta > 6
+    ;  Delta =:= 6,
+       sem_index(SemC, IC),
+       sem_index(Sem0, I0),
+       IC > I0
+    ).
+
+continuous_enrollment_from_start(StudentID) :-
+    registrationSemester(StudentID, msc, Sem0, Y0, yes),
+    current_semester(SemC, YC),
+    forall(
+      term_seq(Sem0, Y0, SemC, YC, Sem, Y),
+      ( registrationSemester(StudentID, msc, Sem, Y, _) -> true
+      ; format('Student ~w missing enrollment in ~w ~w.~n', [StudentID, Sem, Y]),
+        fail
+      )
+    ).
+
+hasToBeTerminated(StudentID, msc) :-
+    ( over_six_years_msc(StudentID) ->
+        registrationSemester(StudentID, msc, _SemStart, YearStart, yes),
+        format('Student ~w has exceeded the 6-year limit (started in ~w).~n', [StudentID, YearStart])
+    ; \+ continuous_enrollment_from_start(StudentID) ->
+        format('Student ~w violates continuous enrollment (missing semesters).~n', [StudentID])
+    ; 
+      format('Student ~w meets all MSC requirements and will NOT be terminated.~n', [StudentID]),
+      fail
+    ).
+
 
 % Termination criteria for PhD:
 % - Failing to pass the Oral Preliminary exam within 6 years from admission.
@@ -602,23 +632,14 @@ hasToBeTerminated(StudentID, phd) :-
     findall(Reason,
         (
             (
-                YearStart =< 2019,
+                over_six_years_msc(StudentID),
                 \+ (phdOralExamTaken(StudentID, _Sem, _Yr, Outcome), Outcome == 'pass'),
                 Reason = 'Failed to pass Oral Preliminary Exam within 6 years'
             );
             % check continuous enrollment
-            forall(
-                ( member(Sem, [fall, spring]),
-                between(YearStart, 2025, Y)
-                ),
-                (
-                    ( registrationSemester(StudentID, Program, Sem, Y, _) ->
-                        true
-                    ;
-                        format('Student ~w missing enrollment in ~w ~w.~n', [StudentID, Sem, Y]),
-                        fail
-                    )
-                )
+            ( 
+                \+ continuous_enrollment_from_start(StudentID),
+                Reason = 'Violates continuous enrollment (missing some Fall/Spring record)'
             );
             (
                 YearStart =< 2015,
@@ -640,6 +661,28 @@ hasToBeTerminated(StudentID, phd) :-
     ;
         format('Student ~w is in good standing (no termination criteria met).~n', [StudentID]), fail
     ).
+
+% whyCanOrCannotTake_noPrint(+StudentID, +CourseID, +SectionID)
+% True if the student can take the given course section; false otherwise.
+whyCanOrCannotTake_noPrint(StudentID, CourseID, SectionID) :-
+    % 1. Must be registered for Fall 2025
+    registrationSemester(StudentID, _, fall, 2025, _),
+
+    % 2. Course must be offered
+    currentCourse(CourseID, SectionID, _, MaxU, Prereq),
+
+    % 3. Must meet prerequisite
+    meet_prerequisite(StudentID, Prereq),
+
+    % 4. Must not have taken it already (except PhD 800-level)
+    ( \+ hasTakenCourse(StudentID, CourseID, _, _, _)
+    ; ( registrationSemester(StudentID, Program, _, _, _),
+        Program == 'phd',
+        is_800_course(CourseID) )
+    ),
+
+    % 5. Unit limit check
+    MaxU =< 12.
 
 % whyCanOrCannotTake(+StudentID, +CourseID, +SectionID)
 % Checks whether a student can take a given course section and explains the reasons why or why not.
@@ -685,11 +728,37 @@ whyCanOrCannotTake(StudentID, CourseID, SectionID) :-
     fail
 ).
 
+% MSC program graduation requirements
+canGraduate_noPrint(StudentID, msc) :-
+    % 1. Must pass CSC600 (Graduate Orientation).
+    hasTakenCourse(StudentID, 'csc600', _Sect, _Units, G600),
+    is_passing_grade(G600),
+    % 2. Core courses: at least 3 core courses total, with at least 1 theory core course.
+    count_theory_course(StudentID, NumTheory), 
+    count_systems_course(StudentID, NumSystems),
+    TotalCore is NumTheory + NumSystems,
+    TotalCore >= 3, NumTheory >= 1, NumSystems >= 1,
+    % 3. CSC elective courses: at least 21 units of CSC 500- or 700-level coursework (max 4 special topics count).
+    units_csc500or700_course(StudentID, UnitsCSC),
+    UnitsCSC >= 21,
+    % 4. Total electives: at least 30 units of graduate-level courses (500/700-level, excluding ST511 and outside 591/791, max 4 special topics).
+    units_all_electives_course(StudentID, UnitsAll),
+    UnitsAll >= 30,
+    % % 5. All CSC courses must be 500 level or above.
+    % all_csc_courses_above_500(StudentID),
+    % % 6. If CSC630 is taken, student must have a CSC faculty advisor (MSC program).
+    % csc630_requires_csc_faculty_advisor(StudentID),
+    % 7. Overall GPA on all taken courses >= 3.0.
+    list_taken_courses(TakenCourses, StudentID),
+    TakenCourses \= [], 
+    student_gpa(StudentID, TakenCourses, GPA),
+    GPA >= 2.0.
+
 % recommendSemesterWork(+StudentID, +Program)
 recommendSemesterWork(StudentID, msc) :-
     format('Recommendations for MSc student ~w:~n', [StudentID]),
     (   % 1) Graduation requirements met: print a message only, no course recommendations
-        canGraduate(StudentID, msc)
+        canGraduate_noPrint(StudentID, msc)
     ->  format('All MSc requirements are satisfied. No further courses recommended.~n', [])
     ;   % 2) Graduation requirements not met: generate a list of recommended courses (filtered by the specified rules).
         % 2.1 Count the number of Special Topics courses (CSC591/CSC791) the student has completed.
@@ -716,7 +785,8 @@ recommendSemesterWork(StudentID, msc) :-
               within_500_to_799(C),                  % within the 500/700 level range
               not_taken_for_recommendation(StudentID, C, Sect),  % Exclude CSC591/CSC791 by section; do not exclude CSC630; exclude all other courses by course ID.
               allow_591_791(C, NumSpecialTaken),     % Do not recommend CSC591/CSC791 if 4 or more such courses have already been taken.
-              allow_630(C, Sum630)                   % Do not recommend CSC630 if 4 or more such credits have already been taken.
+              allow_630(C, Sum630),                  % Do not recommend CSC630 if 4 or more such credits have already been taken.
+              whyCanOrCannotTake_noPrint(StudentID, C, Sect)    % prerequisite
             ),
             format('  ~w (~w)~n', [C, Sect])
         )
@@ -746,8 +816,6 @@ allow_630(CID, Sum630Units) :-
     ( CID == 'csc630' )
     -> Sum630Units < 3
     ;  true.
-
-
 
 
 % Subgoal 1: Recommend orientation (CSC600)
