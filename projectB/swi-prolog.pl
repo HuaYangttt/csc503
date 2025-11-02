@@ -1,3 +1,6 @@
+:- discontiguous canGraduate/2.
+:- discontiguous recommendSemesterWork/2.
+
 % input facts
 % currentCourse(CourseNumber,CourseSection,MinUnits,MaxUnits,Prerequisite)/5
 % hasTakenCourse(StudentID,CourseID,SectionID,Units,Grade)/5
