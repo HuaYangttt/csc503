@@ -547,11 +547,30 @@ canGraduate(StudentID, phd) :-
 
 % Termination criteria for MSC:
 % - Not completing the degree within 6 calendar years of starting the program.
+% - Not continuous enrollment.
 hasToBeTerminated(StudentID, msc) :-
     registrationSemester(StudentID, Program, _SemStart, YearStart, IsFirst),
     Program == 'msc', IsFirst == 'yes',
     % Assume current year is 2025; if started in YearStart such that YearStart <= 2019, then >6 years have elapsed.
-    YearStart =< 2019.
+    (YearStart =< 2019 ->
+        format('Student ~w has exceeded the 6-year limit (started in ~w).~n', [StudentID, YearStart]),
+        !
+    ;
+        % check continuous enrollment
+        forall(
+            ( member(Sem, [fall, spring]),
+              between(YearStart, 2025, Y)
+            ),
+            (
+                ( registrationSemester(StudentID, Program, Sem, Y, _) ->
+                    true
+                ;
+                    format('Student ~w missing enrollment in ~w ~w.~n', [StudentID, Sem, Y]),
+                    fail
+                )
+            )
+        )
+    ).
 
 % Termination criteria for PhD:
 % - Failing to pass the Oral Preliminary exam within 6 years from admission.
