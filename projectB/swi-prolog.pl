@@ -90,7 +90,7 @@ currentCourse('csc591','s028',1,6,'bavg').
 % is_passing_grade(+Grade)/1
 % Checks if the numeric grade is a passing grade (75 or above, which corresponds roughly to a B or better).
 is_passing_grade(G) :-
-    (number(G), G >= 75);
+    (number(G), G >= 2.0);
     G == pass.
 
 
@@ -586,6 +586,20 @@ hasToBeTerminated(StudentID, phd) :-
                 YearStart =< 2019,
                 \+ (phdOralExamTaken(StudentID, _Sem, _Yr, Outcome), Outcome == 'pass'),
                 Reason = 'Failed to pass Oral Preliminary Exam within 6 years'
+            );
+            % check continuous enrollment
+            forall(
+                ( member(Sem, [fall, spring]),
+                between(YearStart, 2025, Y)
+                ),
+                (
+                    ( registrationSemester(StudentID, Program, Sem, Y, _) ->
+                        true
+                    ;
+                        format('Student ~w missing enrollment in ~w ~w.~n', [StudentID, Sem, Y]),
+                        fail
+                    )
+                )
             );
             (
                 YearStart =< 2015,
