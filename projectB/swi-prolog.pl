@@ -10,6 +10,26 @@
 % facultyAffiliation(FacultyID,HomeDepartment)/2
 % planOfGraduateWorkApproved(StudentID)/1
 
+registrationSemester(s001, msc, fall, 2023, yes).
+registrationSemester(s001, msc, spring, 2024, no).
+registrationSemester(s001, msc, fall, 2024, no).
+registrationSemester(s001, msc, spring, 2025, no).
+registrationSemester(s001, msc, fall, 2025, no).
+
+hasTakenCourse(s001, csc600, s001, 1, 3.333).
+hasTakenCourse(s001, csc505, s001, 3, 4.0).
+hasTakenCourse(s001, csc501, s001, 3, 4.0).
+hasTakenCourse(s001, csc540, s001, 3, 4.0).
+hasTakenCourse(s001, csc520, s001, 3, 4.0).
+hasTakenCourse(s001, csc561, s001, 3, 4.0).
+hasTakenCourse(s001, csc565, s001, 3, 4.0).
+hasTakenCourse(s001, csc574, s001, 3, 4.0).
+hasTakenCourse(s001, csc514, s001, 3, 4.0).
+hasTakenCourse(s001, csc579, s001, 3, 4.0).
+hasTakenCourse(s001, csc580, s001, 3, 4.0).
+hasTakenCourse(s001, csc707, s001, 3, 4.0).
+hasTakenCourse(s001, csc591, s001, 3, 4.0).
+
 % Outcome is pass or fail 
 % current course offerings (CourseNumber, Section, MinUnits, MaxUnits, Prerequisite)
 currentCourse('csc885','s001',1,3,'phd').
@@ -88,10 +108,9 @@ currentCourse('csc591','s028',1,6,'bavg').
 
 
 % is_passing_grade(+Grade)/1
-% Checks if the numeric grade is a passing grade (75 or above, which corresponds roughly to a B or better).
+% Checks if the numeric grade is a passing grade (2.0 or above, which corresponds roughly to a B or better).
 is_passing_grade(G) :-
-    (number(G), G >= 2.0);
-    G == pass.
+    (number(G), G >= 2.0).
 
 
 % is_400_course(+CourseID)/1
@@ -225,7 +244,7 @@ meet_prerequisite(StudentID, bavg) :-
     Grades \= [],
     sum_list(Grades, Sum), length(Grades, Count),
     AvgGrade is Sum / Count,
-    AvgGrade >= 75.  % use 75 as numeric equivalent to 3.0 GPA
+    AvgGrade >= 2.0. 
 
 % Prerequisite 'cscmajor' requires the student to be a CSC graduate student (MSC or PhD).
 meet_prerequisite(StudentID, cscmajor) :-
@@ -249,7 +268,7 @@ meet_prerequisite(StudentID, PrereqCourse) :-
 % Counts how many theory core courses the student has passed with a grade >= B.
 count_theory_course(StudentID, NumTheoryCourses) :-
     findall(C, 
-            (hasTakenCourse(StudentID, C, _Sect, _Units, Grade), is_theory_course(C), Grade >= 75), 
+            (hasTakenCourse(StudentID, C, _Sect, _Units, Grade), is_theory_course(C), Grade >= 2.0), 
             TheoryCourses),
     sort(TheoryCourses, UniqueTheoryCourses),
     length(UniqueTheoryCourses, NumTheoryCourses).
@@ -258,7 +277,7 @@ count_theory_course(StudentID, NumTheoryCourses) :-
 % Counts how many systems core courses the student has passed with a grade >= B.
 count_systems_course(StudentID, NumSystemsCourses) :-
     findall(C, 
-            (hasTakenCourse(StudentID, C, _Sect, _Units, Grade), is_systems_course(C), Grade >= 75), 
+            (hasTakenCourse(StudentID, C, _Sect, _Units, Grade), is_systems_course(C), Grade >= 2.0), 
             SystemsCourses),
     sort(SystemsCourses, S0),
     normalize_subs(S0, UniqueSystemsCourses),
@@ -609,7 +628,7 @@ hasToBeTerminated(StudentID, phd) :-
                 findall(U, (hasTakenCourse(StudentID, _CID, _Sect, U, Grade), number(Grade)), UnitsList),
                 sum_list(UnitsList, SumUnits), SumUnits >= 18,
                 list_taken_courses(TakenList, StudentID), TakenList \= [],
-                student_gpa(StudentID, TakenList, GPA), GPA < 75,
+                student_gpa(StudentID, TakenList, GPA), GPA < 2.0,
                 Reason = 'Accumulated >=18 credits with GPA below 3.0'
             )
         ),
