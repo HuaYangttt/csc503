@@ -518,12 +518,21 @@ advisory_committee_satisfied(StudentID) :-
     OutsideCSCCount >= 1.
 % Subgoal 8: Exams satisfied (written, oral, and defense all passed)
 exams_satisfied(StudentID) :-
-    phdWrittenExamTaken(StudentID, _, _, WrittenOutcome),
-    (WrittenOutcome == pass ; (number(WrittenOutcome), WrittenOutcome >= 2.0)),
-    phdOralExamTaken(StudentID, _, _, OralOutcome),
-    (OralOutcome == pass ; (number(OralOutcome), OralOutcome >= 2.0)),
-    phdDefenseTaken(StudentID, _, _, DefenseOutcome),
-    (DefenseOutcome == pass ; (number(DefenseOutcome), DefenseOutcome >= 2.0)).
+    (current_predicate(phdWrittenExamTaken/4) -> 
+        (phdWrittenExamTaken(StudentID, _, _, WrittenOutcome),
+         (WrittenOutcome == pass ; (number(WrittenOutcome), WrittenOutcome >= 2.0)))
+    ;   fail
+    ),
+    (current_predicate(phdOralExamTaken/4) -> 
+        (phdOralExamTaken(StudentID, _, _, OralOutcome),
+         (OralOutcome == pass ; (number(OralOutcome), OralOutcome >= 2.0)))
+    ;   fail
+    ),
+    (current_predicate(phdDefenseTaken/4) -> 
+        (phdDefenseTaken(StudentID, _, _, DefenseOutcome),
+         (DefenseOutcome == pass ; (number(DefenseOutcome), DefenseOutcome >= 2.0)))
+    ;   fail
+    ).
 % Subgoal 9: Overall GPA satisfied (>=83, which is B average or 3.0)
 overall_gpa_satisfied(StudentID) :-
     list_taken_courses(TakenCoursesList, StudentID),
