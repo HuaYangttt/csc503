@@ -13,39 +13,6 @@
 % facultyAffiliation(FacultyID,HomeDepartment)/2
 % planOfGraduateWorkApproved(StudentID)/1
 
-% registration history
-registrationSemester(s004, phd, fall, 2010, yes).
-registrationSemester(s004, phd, spring, 2023, no).
-registrationSemester(s004, phd, fall, 2023, no).
-registrationSemester(s004, phd, spring, 2024, no).
-registrationSemester(s004, phd, fall, 2024, no).
-registrationSemester(s004, phd, spring, 2025, no).
-
-% course history (low grades to lower GPA)
-hasTakenCourse(s004, csc600, s001, 1, 3.333).
-hasTakenCourse(s004, csc505, s001, 3, 2.3).
-hasTakenCourse(s004, csc503, s001, 3, 2.3).
-hasTakenCourse(s004, csc501, s001, 3, 2.7).
-hasTakenCourse(s004, csc540, s001, 3, 2.3).
-hasTakenCourse(s004, csc714, s001, 3, 2.3).
-hasTakenCourse(s004, csc712, s001, 3, 2.7).
-
-% Exam outcomes
-phdWrittenExamTaken(s004, fall, 2016, 3.333).
-phdOralExamTaken(s004, spring, 2024, 1.0).  
-
-% advisor etc (no change)
-graduateAdvisor(s004, advisor1, phd).
-advisoryCommitteeMember(s004, advisor1).
-advisoryCommitteeMember(s004, member2).
-advisoryCommitteeMember(s004, member3).
-advisoryCommitteeMember(s004, member4).
-facultyAffiliation(advisor1, csc).
-facultyAffiliation(member2, csc).
-facultyAffiliation(member3, ece).
-facultyAffiliation(member4, csc).
-planOfGraduateWorkApproved(s004).
-
 % Outcome is pass or fail 
 % current course offerings (CourseNumber, Section, MinUnits, MaxUnits, Prerequisite)
 currentCourse('csc885','s001',1,3,'phd').
