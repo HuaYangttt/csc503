@@ -235,21 +235,30 @@ recommend_elective_research_credits(StudentID) :-
 recommend_exams(StudentID) :-
     % Initialize list of exams needed
     findall(Exam,
-            ( (   (\+ phdWrittenExamTaken(StudentID, _, _, _) ; 
-                   (phdWrittenExamTaken(StudentID, _, _, WrittenOutcome), 
-                    \+ (WrittenOutcome == pass ; (number(WrittenOutcome), WrittenOutcome >= 2.0))))
+            ( (   % Check written exam
+                  ( \+ current_predicate(phdWrittenExamTaken/4)  % predicate doesn't exist
+                  ; (\+ phdWrittenExamTaken(StudentID, _, _, _))  % no record for student
+                  ; (phdWrittenExamTaken(StudentID, _, _, WrittenOutcome), 
+                     \+ (WrittenOutcome == pass ; (number(WrittenOutcome), WrittenOutcome >= 2.0)))  % record exists but not passing
+                  )
               ->  Exam = 'PhD Written Preliminary Exam'
               ;   fail
               )
-            ; (   (\+ phdOralExamTaken(StudentID, _, _, _) ; 
-                   (phdOralExamTaken(StudentID, _, _, OralOutcome), 
-                    \+ (OralOutcome == pass ; (number(OralOutcome), OralOutcome >= 2.0))))
+            ; (   % Check oral exam
+                  ( \+ current_predicate(phdOralExamTaken/4)
+                  ; (\+ phdOralExamTaken(StudentID, _, _, _))
+                  ; (phdOralExamTaken(StudentID, _, _, OralOutcome), 
+                     \+ (OralOutcome == pass ; (number(OralOutcome), OralOutcome >= 2.0)))
+                  )
               ->  Exam = 'PhD Oral Preliminary Exam'
               ;   fail
               )
-            ; (   (\+ phdDefenseTaken(StudentID, _, _, _) ; 
-                   (phdDefenseTaken(StudentID, _, _, DefenseOutcome), 
-                    \+ (DefenseOutcome == pass ; (number(DefenseOutcome), DefenseOutcome >= 2.0))))
+            ; (   % Check defense
+                  ( \+ current_predicate(phdDefenseTaken/4)
+                  ; (\+ phdDefenseTaken(StudentID, _, _, _))
+                  ; (phdDefenseTaken(StudentID, _, _, DefenseOutcome), 
+                     \+ (DefenseOutcome == pass ; (number(DefenseOutcome), DefenseOutcome >= 2.0)))
+                  )
               ->  Exam = 'PhD Dissertation Defense'
               ;   fail
               )
