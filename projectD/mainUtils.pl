@@ -334,15 +334,20 @@ units_csc_elective_research_phd(StudentID, TotalUnits) :-
     TotalUnits is SumRegular + Count890 + SumSpecialLimited.
 
 continuous_enrollment_from_start(StudentID) :-
-    registrationSemester(StudentID, msc, Sem0, Y0, yes),
+    registrationSemester(StudentID, _, Sem0, Y0, yes),
     current_semester(SemC, YC),
-    forall(
-      term_seq(Sem0, Y0, SemC, YC, Sem, Y),
-      ( registrationSemester(StudentID, msc, Sem, Y, _) -> true
-      ; format('Student ~w missing enrollment in ~w ~w.~n', [StudentID, Sem, Y]),
-        fail
-      )
+    findall(
+        (Sem, Y),
+        (term_seq(Sem0, Y0, SemC, YC, Sem, Y),
+         \+ registrationSemester(StudentID, _, Sem, Y, _)),
+        MissingTerms
+    ),
+    (   MissingTerms == [] 
+    ->  true
+    ;   fail
     ).
+
+current_semester(fall, 2025).
 
 sem_index(spring, 0).
 sem_index(fall,   1).

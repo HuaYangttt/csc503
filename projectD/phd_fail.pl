@@ -1,4 +1,4 @@
-: - consult('swi-prolog.pl').
+:- consult('swi-prolog.pl').
 :- consult('phdCanGraduate.pl').
 :- consult('phdTerminated.pl').
 :- consult('whyCanOrCannotTake.pl').
