@@ -7,15 +7,15 @@ recommend_orientation(StudentID) :-
         true  % Orientation requirement met, nothing to recommend
     ;   % Orientation not satisfied, check status and recommend
         ( hasTakenCourse(StudentID, 'csc600', _, _, Grade) ->
-            % Student took CSC600 but didn't pass
-            ( \+ is_passing_grade(Grade) ->
+            % Student took CSC600 - check if grade < 2.0 (not passing)
+            ( Grade < 2.0 ->
                 format('Unmet Requirement: Retake CSC600 (current grade insufficient)~n', []),
                 ( currentCourse('csc600', SectionID, MinU, MaxU, _) ->
                     format('  Available course:~n', []),
                     format('  - csc600 (~w, ~w-~w units)~n', [SectionID, MinU, MaxU])
                 ;   true
                 )
-            ;   true
+            ;   true  % Grade >= 2.0, student passed
             )
         ;   % Student has not taken CSC600 at all
             format('Unmet Requirement: CSC600 Orientation~n', []),
@@ -26,7 +26,6 @@ recommend_orientation(StudentID) :-
             )
         )
     ).
-
 
 % Subgoal 2: Recommend core courses
 recommend_core_courses(StudentID) :-
