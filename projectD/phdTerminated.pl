@@ -12,7 +12,7 @@ hasToBeTerminated(StudentID, phd) :-
     findall(Reason,
         (
             (
-                over_six_years_msc(StudentID),
+                YearStart =< 2019,
                 \+ (phdOralExamTaken(StudentID, _Sem, _Yr, Outcome), Outcome == 'pass'),
                 Reason = 'Failed to pass Oral Preliminary Exam within 6 years'
             );
