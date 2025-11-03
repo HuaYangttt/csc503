@@ -517,7 +517,6 @@ advisory_committee_satisfied(StudentID) :-
     length(OutsideCSCMembers, OutsideCSCCount),
     OutsideCSCCount >= 1.
 % Subgoal 8: Exams satisfied (written, oral, and defense all passed)
-% Subgoal 8: Exams satisfied (written, oral, and defense all passed)
 exams_satisfied(StudentID) :-
     phdWrittenExamTaken(StudentID, _, _, WrittenOutcome),
     (WrittenOutcome == pass ; (number(WrittenOutcome), WrittenOutcome >= 2.0)),
