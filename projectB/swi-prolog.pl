@@ -1119,42 +1119,7 @@ recommend_elective_research_credits(StudentID) :-
     ;   true
     ).
 
-% Subgoal 6: Recommend advisor
-recommend_advisor(StudentID) :-
-    ( advisor_satisfied(StudentID) ->
-        true  % Advisor requirement met, nothing to recommend
-    ;   % Advisor not satisfied
-        format('Unmet Requirement: Graduate Advisor~n', []),
-        ( graduateAdvisor(StudentID, Advisor, phd) ->
-            % Advisor exists but may not be CSC-affiliated
-            format('  Action needed: Ensure your advisor (~w) is CSC-affiliated faculty~n', [Advisor])
-        ;   % No advisor assigned
-            format('  Action needed: Select a graduate advisor from CSC faculty~n', [])
-        )
-    ).
-
-% Subgoal 7: Recommend advisory committee
-recommend_advisory_committee(StudentID) :-
-    ( advisory_committee_satisfied(StudentID) ->
-        true  % Advisory committee requirement met, nothing to recommend
-    ;   % Advisory committee not satisfied
-        format('Unmet Requirement: Advisory Committee~n', []),
-        
-        % Collect committee members
-        findall(Faculty,
-                advisoryCommitteeMember(StudentID, Faculty),
-                CommitteeMembers),
-        length(CommitteeMembers, TotalMembers),
-        
-        % Print general requirements without detailed analysis
-        format('  Current committee: ~w members~n', [TotalMembers]),
-        format('  Action needed:~n', []),
-        format('  - Ensure committee has at least 4 members total~n', []),
-        format('  - Ensure at least 2 members are CSC-affiliated faculty~n', []),
-        format('  - Ensure at least 1 member is from outside CSC~n', [])
-    ).
-
-% Subgoal 8: Recommend exams
+% Subgoal 6: Recommend exams
 recommend_exams(StudentID) :-
     % Initialize list of exams needed
     findall(Exam,
@@ -1190,7 +1155,7 @@ recommend_exams(StudentID) :-
     ;   true
     ).
 
-% Subgoal 9: Recommend GPA improvement
+% Subgoal 7: Recommend GPA improvement
 recommend_gpa_improvement(StudentID) :-
     ( overall_gpa_satisfied(StudentID) ->
         true  % GPA requirement met, nothing to recommend
@@ -1206,16 +1171,7 @@ recommend_gpa_improvement(StudentID) :-
         format('  - Consider strategies to improve performance in future coursework~n', [])
     ).
 
-% Subgoal 10: Recommend plan approval
-recommend_plan_approval(StudentID) :-
-    ( plan_approved(StudentID) ->
-        true  % Plan approved, nothing to recommend
-    ;   % Plan not approved
-        format('Unmet Requirement: Plan of Graduate Work~n', []),
-        format('  Action needed: Submit Plan of Graduate Work for approval~n', [])
-    ).
-
-% Subgoal 11: Provide credit requirement notes
+% Subgoal 8: Provide credit requirement notes
 provide_credit_notes(StudentID) :-
     format('~n', []),
     format('=== Important Notes for Fall 2025 ===~n', []),
@@ -1228,9 +1184,6 @@ provide_credit_notes(StudentID) :-
 
 % main recommendation predicate for PhD students
 recommendSemesterWork(StudentID, phd) :-
-    % Check if student is registered for Fall 2025
-    registrationSemester(StudentID, phd, fall, 2025, _),
-    !,
     % Subgoal 1: Check orientation and recommend if needed
     recommend_orientation(StudentID),
     % Subgoal 2: Check core courses and recommend if needed
@@ -1241,15 +1194,9 @@ recommendSemesterWork(StudentID, phd) :-
     recommend_dissertation_credits(StudentID),
     % Subgoal 5: Check elective/research credits and recommend if needed
     recommend_elective_research_credits(StudentID),
-    % Subgoal 6: Check advisor and recommend if needed
-    recommend_advisor(StudentID),
-    % Subgoal 7: Check advisory committee and recommend if needed
-    recommend_advisory_committee(StudentID),
-    % Subgoal 8: Check exams and recommend if needed
+    % Subgoal 6: Check exams and recommend if needed
     recommend_exams(StudentID),
-    % Subgoal 9: Check GPA and recommend if needed
+    % Subgoal 7: Check GPA and recommend if needed
     recommend_gpa_improvement(StudentID),
-    % Subgoal 10: Check plan approval and recommend if needed
-    recommend_plan_approval(StudentID),
-    % Subgoal 11: Provide final notes about credit requirements
+    % Subgoal 8: Provide final notes about credit requirements
     provide_credit_notes(StudentID).
