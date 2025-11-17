@@ -13,6 +13,228 @@
 % facultyAffiliation(FacultyID,HomeDepartment)/2
 % planOfGraduateWorkApproved(StudentID)/1
 
+% =========================
+% MSc test case 3: s005  (应该可以毕业的正常用例)
+% =========================
+
+% registration history
+registrationSemester(s005, msc, fall,   2024, yes).
+registrationSemester(s005, msc, spring, 2025, no).
+registrationSemester(s005, msc, fall,   2025, no).
+
+% Fall 2024 (10 credits)
+hasTakenCourse(s005, csc600, s001, 1, 3.333).  % Orientation (S/U)
+% Core - Theory
+hasTakenCourse(s005, csc503, s001, 3, 4.000).
+hasTakenCourse(s005, csc505, s001, 3, 4.000).
+% Core - Systems
+hasTakenCourse(s005, csc501, s001, 3, 4.000).
+
+% Spring 2025 (9 credits)
+% Core - Systems
+hasTakenCourse(s005, csc540, s001, 3, 4.000).
+% Electives
+hasTakenCourse(s005, csc565, s001, 3, 4.000).
+hasTakenCourse(s005, csc579, s001, 3, 4.000).
+
+% Fall 2025 (9 credits)
+% Electives
+hasTakenCourse(s005, csc574, s001, 3, 4.000).
+hasTakenCourse(s005, csc580, s001, 3, 4.000).
+hasTakenCourse(s005, csc630, s001, 3, 4.000).
+
+
+% =========================
+% MSc test case 4: s006  (典型“不能毕业”的反例：缺少CSC600和理论课)
+% =========================
+
+% registration history
+registrationSemester(s006, msc, fall,   2023, yes).
+registrationSemester(s006, msc, spring, 2024, no).
+registrationSemester(s006, msc, fall,   2024, no).
+registrationSemester(s006, msc, spring, 2025, no).
+
+% 注意：故意不修 csc600，且只有 systems core，没有 theory core
+
+% Fall 2023 (9 credits)
+% Core - Systems
+hasTakenCourse(s006, csc501, s001, 3, 3.000).
+hasTakenCourse(s006, csc540, s001, 3, 3.000).
+% Elective
+hasTakenCourse(s006, csc520, s001, 3, 3.000).
+
+% Spring 2024 (9 credits)
+% Core - Systems
+hasTakenCourse(s006, csc561, s001, 3, 3.000).
+% Electives
+hasTakenCourse(s006, csc565, s001, 3, 3.000).
+hasTakenCourse(s006, csc570, s001, 3, 3.000).
+
+% Fall 2024 (9 credits)
+% Electives
+hasTakenCourse(s006, csc579, s001, 3, 3.000).
+hasTakenCourse(s006, csc580, s001, 3, 3.000).
+hasTakenCourse(s006, csc574, s001, 3, 3.000).
+
+% Spring 2025 (6 credits)
+% Electives
+hasTakenCourse(s006, csc630, s001, 3, 3.000).
+hasTakenCourse(s006, csc591, s001, 3, 3.000).
+
+
+% =========================
+% PhD test case 3: s007  (应该可以毕业：三考都 pass，委员会和计划都合规)
+% =========================
+
+% registration history
+registrationSemester(s007, phd, fall,   2021, yes).
+registrationSemester(s007, phd, spring, 2022, no).
+registrationSemester(s007, phd, fall,   2022, no).
+registrationSemester(s007, phd, spring, 2023, no).
+registrationSemester(s007, phd, fall,   2023, no).
+registrationSemester(s007, phd, spring, 2024, no).
+registrationSemester(s007, phd, fall,   2024, no).
+registrationSemester(s007, phd, spring, 2025, no).
+
+% Fall 2021 (10 credits)
+hasTakenCourse(s007, csc600, s001, 1, 4.000).   % Orientation
+% Core - Theory
+hasTakenCourse(s007, csc503, s001, 3, 4.000).
+% Core - Systems
+hasTakenCourse(s007, csc501, s001, 3, 4.000).
+hasTakenCourse(s007, csc540, s001, 3, 4.000).
+
+% Spring 2022 (9 credits)
+% 700-level courses
+hasTakenCourse(s007, csc714, s001, 3, 4.000).
+hasTakenCourse(s007, csc712, s001, 3, 4.000).
+% research credits
+hasTakenCourse(s007, csc830, s001, 3, 3.333).
+
+% Fall 2022 (9 credits)
+% research + prelim prep
+hasTakenCourse(s007, csc830, s001, 3, 3.333).
+hasTakenCourse(s007, csc890, s001, 6, 3.333).   % written prelim registration
+
+% Spring 2023 (9 credits)
+hasTakenCourse(s007, csc520, s001, 3, 4.000).   % elective
+hasTakenCourse(s007, csc570, s001, 3, 4.000).   % elective
+hasTakenCourse(s007, csc830, s001, 3, 3.333).   % research
+
+% Fall 2023 (9 credits)
+hasTakenCourse(s007, csc890, s001, 3, 3.333).   % oral prelim registration
+hasTakenCourse(s007, csc574, s001, 3, 4.000).   % elective
+hasTakenCourse(s007, csc565, s001, 3, 4.000).   % elective
+
+% Spring 2024 (9 credits)
+hasTakenCourse(s007, csc893, s001, 9, 3.333).   % research credits
+
+% Fall 2024 (9 credits)
+hasTakenCourse(s007, csc893, s001, 9, 3.333).   % research credits
+
+% Spring 2025 (9 credits)
+hasTakenCourse(s007, csc895, s001, 9, 3.333).   % dissertation
+
+% Exam outcomes (pass / fail 根据新规则)
+phdWrittenExamTaken(s007, fall,   2022, pass).
+phdOralExamTaken(s007,   fall,   2023, pass).
+phdDefenseTaken(s007,    spring, 2025, pass).
+
+% Graduate advisor
+graduateAdvisor(s007, advisor2, phd).
+
+% Advisory committee (4 members, 1 outside-CS member)
+advisoryCommitteeMember(s007, advisor2).
+advisoryCommitteeMember(s007, member2).
+advisoryCommitteeMember(s007, member3).  % outside CS
+advisoryCommitteeMember(s007, member4).
+
+% Faculty affiliations
+facultyAffiliation(advisor2, csc).
+facultyAffiliation(member2,  csc).
+facultyAffiliation(member3,  ece).  % outside CS department
+facultyAffiliation(member4,  csc).
+
+% Plan approved
+planOfGraduateWorkApproved(s007).
+
+
+% =========================
+% PhD test case 4: s008  (不能毕业：oral exam fail，用来测失败路径)
+% =========================
+
+% registration history
+registrationSemester(s008, phd, fall,   2022, yes).
+registrationSemester(s008, phd, spring, 2023, no).
+registrationSemester(s008, phd, fall,   2023, no).
+registrationSemester(s008, phd, spring, 2024, no).
+registrationSemester(s008, phd, fall,   2024, no).
+registrationSemester(s008, phd, spring, 2025, no).
+registrationSemester(s008, phd, fall, 2025, no).
+
+% Fall 2022 (10 credits)
+hasTakenCourse(s008, csc600, s001, 1, 3.000).   % Orientation
+% Core - Theory
+hasTakenCourse(s008, csc505, s001, 3, 3.700).
+hasTakenCourse(s008, csc503, s001, 3, 4.000).
+% Core - Systems
+hasTakenCourse(s008, csc501, s001, 3, 3.700).
+hasTakenCourse(s008, csc540, s001, 3, 3.700).
+
+% Spring 2023 (9 credits)
+% 700-level
+hasTakenCourse(s008, csc714, s001, 3, 3.700).
+hasTakenCourse(s008, csc712, s001, 3, 3.700).
+% research
+hasTakenCourse(s008, csc830, s001, 3, 3.333).
+
+% Fall 2023 (9 credits)
+% written prelim registration
+hasTakenCourse(s008, csc890, s001, 3, 3.000).
+% electives
+hasTakenCourse(s008, csc520, s001, 3, 3.700).
+hasTakenCourse(s008, csc570, s001, 3, 3.700).
+
+% Spring 2024 (9 credits)
+% oral prelim registration
+hasTakenCourse(s008, csc890, s001, 3, 3.000).
+% research
+hasTakenCourse(s008, csc893, s001, 6, 3.000).
+
+% Fall 2024 (9 credits)
+% research
+hasTakenCourse(s008, csc893, s001, 9, 3.000).
+
+% Spring 2025 (6 credits)
+% still research, no dissertation yet
+hasTakenCourse(s008, csc893, s001, 6, 3.000).
+
+% Exam outcomes (oral exam fail)
+phdWrittenExamTaken(s008, fall,   2023, pass).
+phdOralExamTaken(s008,   spring, 2024, fail).
+% No defense yet for s008
+
+% Graduate advisor
+graduateAdvisor(s008, advisor2, phd).
+
+% Advisory committee (4 members)
+advisoryCommitteeMember(s008, advisor2).
+advisoryCommitteeMember(s008, member2).
+advisoryCommitteeMember(s008, member3).  % outside CS
+advisoryCommitteeMember(s008, member4).
+
+% Faculty affiliations（复用前面的老师）
+% advisor2, member2, member3, member4 的 affiliation 已在上面给出
+% 如果你想也可以重复写一遍：
+% facultyAffiliation(advisor2, csc).
+% facultyAffiliation(member2,  csc).
+% facultyAffiliation(member3,  ece).
+% facultyAffiliation(member4,  csc).
+
+% Plan approved
+planOfGraduateWorkApproved(s008).
+
+
 % Outcome is pass or fail 
 % current course offerings (CourseNumber, Section, MinUnits, MaxUnits, Prerequisite)
 currentCourse('csc885','s001',1,3,'phd').
@@ -332,7 +554,16 @@ units_all_electives_course(StudentID, TotalUnits) :-
             CSC630UnitsList),
     sum_list(CSC630UnitsList, SumCSC630Raw),
     ( SumCSC630Raw > 3 -> SumCSC630 = 3 ; SumCSC630 = SumCSC630Raw ),
-    TotalUnits is SumRegular + SumSpecialLimited + SumCSC630.
+    
+    % 4) Collect units of CSC600 (orientation), counted with at most 1 unit.
+    findall(Units600,
+            hasTakenCourse(StudentID, 'csc600', _Sect, Units600, _Grade),
+            CSC600UnitsList),
+    sum_list(CSC600UnitsList, Sum600Raw),
+    ( Sum600Raw > 1 -> Sum600 = 1 ; Sum600 = Sum600Raw ),
+
+    % 5) Final total
+    TotalUnits is SumRegular + SumSpecialLimited + SumCSC630 + Sum600.
 
 % all_csc_courses_above_500(+StudentID)
 all_csc_courses_above_500(StudentID) :-
@@ -544,26 +775,66 @@ plan_approved(StudentID) :-
 
 % PhD program graduation requirements
 canGraduate(StudentID, phd) :-
-    % Subgoal 1: Check CSC600 orientation requirement
-    orientation_satisfied(StudentID),
-    % Subgoal 2: Check core course requirements (>=2 theory, >=2 systems, total >=4)
-    core_courses_satisfied(StudentID),
-    % Subgoal 3: Check 700-level course requirement (>=2 passed)
-    seven_hundred_courses_satisfied(StudentID),
-    % Subgoal 4: Check dissertation credits (>=6 units of CSC890)
-    dissertation_credits_satisfied(StudentID),
-    % Subgoal 5: Check CSC elective/research credits (>=47 units)
-    elective_research_credits_satisfied(StudentID),
-    % Subgoal 6: Check graduate advisor requirement (CSC faculty)
-    advisor_satisfied(StudentID),
-    % Subgoal 7: Check advisory committee (>=4 members, >=1 outside CSC, >=2 CSC)
-    advisory_committee_satisfied(StudentID),
-    % Subgoal 8: Check PhD exams (written, oral, defense all passed)
-    exams_satisfied(StudentID),
-    % Subgoal 9: Check overall GPA (>=3.0)
-    overall_gpa_satisfied(StudentID),
-    % Subgoal 10: Check plan of graduate work approved
-    plan_approved(StudentID).
+    % Subgoal 1: Orientation (CSC600)
+    ( orientation_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w did not satisfy the CSC600 orientation requirement.~n', [StudentID]),
+       fail ),
+
+    % Subgoal 2: Core courses
+    ( core_courses_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w did not satisfy the core course requirements (>=2 theory, >=2 systems, >=4 total).~n', [StudentID]),
+       fail ),
+
+    % Subgoal 3: 700-level coursework requirement
+    ( seven_hundred_courses_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w did not satisfy the requirement of taking at least two 700-level courses with passing grades.~n', [StudentID]),
+       fail ),
+
+    % Subgoal 4: Dissertation credits (CSC890 >= 6)
+    ( dissertation_credits_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w did not complete at least 6 units of CSC890 (dissertation preparation).~n', [StudentID]),
+       fail ),
+
+    % Subgoal 5: Elective + research credit requirement (>= 47)
+    ( elective_research_credits_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w does not have the required 47+ units of electives and research credits.~n', [StudentID]),
+       fail ),
+
+    % Subgoal 6: Graduate advisor in CSC
+    ( advisor_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w does not have a valid graduate advisor in CSC.~n', [StudentID]),
+       fail ),
+
+    % Subgoal 7: Advisory committee requirement
+    ( advisory_committee_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w does not meet the advisory committee requirements (4 members, >=1 outside CSC, >=2 CSC).~n', [StudentID]),
+       fail ),
+
+    % Subgoal 8: PhD Exams (all passed)
+    ( exams_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w did not pass all required PhD exams (written, oral, defense).~n', [StudentID]),
+       fail ),
+
+    % Subgoal 9: GPA >= 3.0
+    ( overall_gpa_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w does not have the minimum overall GPA of 3.0.~n', [StudentID]),
+       fail ),
+
+    % Subgoal 10: Plan of work approved
+    ( plan_approved(StudentID)
+    -> true
+    ;  format('Fail: Student ~w does not have an approved Plan of Graduate Work.~n', [StudentID]),
+       fail ).
+
 
 
 % hasToBeTerminated(+StudentID, +Program)
