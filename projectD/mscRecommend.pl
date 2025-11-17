@@ -37,29 +37,4 @@ recommendSemesterWork(StudentID, msc) :-
             ),
             format('  ~w (~w)~n', [C, Sect])
         )
-    ).
-
-within_500_to_799(CID) :-
-    atom_concat('csc', NumAtom, CID),
-    atom_number(NumAtom, Num),
-    Num >= 500, Num < 800.
-
-not_taken_for_recommendation(StudentID, CID, Sect) :-
-    ( CID == 'csc591' ; CID == 'csc791' ) ->
-        \+ hasTakenCourse(StudentID, CID, Sect, _, _)
-    ; CID == 'csc630' ->
-        true
-    ; \+ hasTakenCourse(StudentID, CID, _, _, _).
-
-level_500_or_700(CID) :-
-    ( is_500_course(CID) ; is_700_course(CID) ; CID == 'csc591' ; CID == 'csc791' ).
-
-allow_591_791(CID, NumSpecialTaken) :-
-    ( CID == 'csc591' ; CID == 'csc791' )
-    -> NumSpecialTaken < 4
-    ;  true.
-
-allow_630(CID, Sum630Units) :-
-    ( CID == 'csc630' )
-    -> Sum630Units < 3
-    ;  true.
+). 

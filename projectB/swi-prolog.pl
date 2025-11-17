@@ -1,6 +1,3 @@
-:- discontiguous canGraduate/2.
-:- discontiguous recommendSemesterWork/2.
-
 % input facts
 % currentCourse(CourseNumber,CourseSection,MinUnits,MaxUnits,Prerequisite)/5
 % hasTakenCourse(StudentID,CourseID,SectionID,Units,Grade)/5
@@ -15,7 +12,7 @@
 
 
 
-% Outcome is pass or fail 
+
 % current course offerings (CourseNumber, Section, MinUnits, MaxUnits, Prerequisite)
 currentCourse('csc885','s001',1,3,'phd').
 currentCourse('csc501','s001',3,3,'csc246').
@@ -81,6 +78,8 @@ currentCourse('csc791','s027',1,6,'none').
 currentCourse('csc591','s025',1,6,'bavg').
 currentCourse('csc591','s027',1,6,'bavg').
 currentCourse('csc591','s028',1,6,'bavg').
+
+
 
 :- use_module(library(lists)).
 % for list manipulation predicates (e.g., sort, member).
@@ -334,16 +333,7 @@ units_all_electives_course(StudentID, TotalUnits) :-
             CSC630UnitsList),
     sum_list(CSC630UnitsList, SumCSC630Raw),
     ( SumCSC630Raw > 3 -> SumCSC630 = 3 ; SumCSC630 = SumCSC630Raw ),
-    
-    % 4) Collect units of CSC600 (orientation), counted with at most 1 unit.
-    findall(Units600,
-            hasTakenCourse(StudentID, 'csc600', _Sect, Units600, _Grade),
-            CSC600UnitsList),
-    sum_list(CSC600UnitsList, Sum600Raw),
-    ( Sum600Raw > 1 -> Sum600 = 1 ; Sum600 = Sum600Raw ),
-
-    % 5) Final total
-    TotalUnits is SumRegular + SumSpecialLimited + SumCSC630 + Sum600.
+    TotalUnits is SumRegular + SumSpecialLimited + SumCSC630.
 
 % all_csc_courses_above_500(+StudentID)
 all_csc_courses_above_500(StudentID) :-
@@ -413,11 +403,103 @@ units_csc_elective_research_phd(StudentID, TotalUnits) :-
     ),
     TotalUnits is SumRegular + Count890 + SumSpecialLimited.
 
-% canGraduate(+StudentID, +Program)
-% Succeeds if the student meets all graduation requirements for the given Program (msc or phd).
-% Checks various program requirements as outlined.
- 
-% MSC program graduation requirements
+continuous_enrollment_from_start(StudentID) :-
+    registrationSemester(StudentID, _, Sem0, Y0, yes),
+    current_semester(SemC, YC),
+    findall(
+        (Sem, Y),
+        (term_seq(Sem0, Y0, SemC, YC, Sem, Y),
+         \+ registrationSemester(StudentID, _, Sem, Y, _)),
+        MissingTerms
+    ),
+    (   MissingTerms == [] 
+    ->  true
+    ;   fail
+    ).
+
+current_semester(fall, 2025).
+
+sem_index(spring, 0).
+sem_index(fall,   1).
+
+next_term(spring, Y, fall,  Y).
+next_term(fall,   Y, spring, Y1) :- Y1 is Y + 1.
+
+term_seq(Sem0, Y0, SemC, YC, Sem0, Y0).
+term_seq(Sem0, Y0, SemC, YC, Sem,  Y) :-
+    ( Sem0 = SemC, Y0 = YC -> fail
+    ; next_term(Sem0, Y0, S1, Y1),
+      ( Sem = S1, Y = Y1
+      ; term_seq(S1, Y1, SemC, YC, Sem, Y)
+      )
+).
+
+% whyCanOrCannotTake_noPrint(+StudentID, +CourseID, +SectionID)
+% True if the student can take the given course section; false otherwise.
+whyCanOrCannotTake_noPrint(StudentID, CourseID, SectionID) :-
+    % 1. Must be registered for Fall 2025
+    registrationSemester(StudentID, _, fall, 2025, _),
+
+    % 2. Course must be offered
+    currentCourse(CourseID, SectionID, _, MaxU, Prereq),
+
+    % 3. Must meet prerequisite
+    meet_prerequisite(StudentID, Prereq),
+
+    % 4. Must not have taken it already (except PhD 800-level)
+    ( \+ hasTakenCourse(StudentID, CourseID, _, _, _)
+    ; ( registrationSemester(StudentID, Program, _, _, _),
+        Program == 'phd',
+        is_800_course(CourseID) )
+    ),
+
+    % 5. Unit limit check
+    MaxU =< 12.
+
+% whyCanOrCannotTake(+StudentID, +CourseID, +SectionID)
+% Checks whether a student can take a given course section and explains the reasons why or why not.
+whyCanOrCannotTake(StudentID, CourseID, SectionID) :-
+    findall(Reason, (
+        (
+            % 1. Not registered
+            \+ registrationSemester(StudentID, _, fall, 2025, _),
+            format(atom(Reason), 'Student ~w is not registered for Fall 2025', [StudentID])
+        );
+        (
+            % 2. Course not offered
+            \+ currentCourse(CourseID, SectionID, _, _, _),
+            format(atom(Reason), 'Course ~w section ~w is not offered in Fall 2025', [CourseID, SectionID])
+        );
+        (
+            % 3. Prerequisite not met
+            currentCourse(CourseID, SectionID, _, _, Prereq),
+            \+ meet_prerequisite(StudentID, Prereq),
+            format(atom(Reason), 'Prerequisite ~w for ~w not met by student ~w', [Prereq, CourseID, StudentID])
+        );
+        (
+            % 4. Already taken (except PhD 800)
+            registrationSemester(StudentID, Program, _, _, _),
+            hasTakenCourse(StudentID, CourseID, _, _, _),
+            \+ (Program == 'phd', is_800_course(CourseID)),
+            format(atom(Reason), 'Student ~w has already taken course ~w', [StudentID, CourseID])
+        );
+        (
+            % 5. Exceeds unit limit
+            currentCourse(CourseID, SectionID, _, MaxU, _),
+            MaxU > 12,
+            format(atom(Reason), 'Course ~w exceeds 12-unit per semester limit (~w units)', [CourseID, MaxU])
+        )
+    ), Reasons),
+
+    ( Reasons = [] ->
+    format('Student ~w can enroll in ~w (section ~w).~n', [StudentID, CourseID, SectionID])
+;
+    format('Student ~w cannot enroll in ~w (section ~w) because:~n', [StudentID, CourseID, SectionID]),
+    sort(Reasons, UniqueReasons),
+    forall(member(R, UniqueReasons), format('- ~w~n', [R])),
+    fail
+).
+
 canGraduate(StudentID, msc) :-
     % 1. Must pass CSC600 (Graduate Orientation).
     ( hasTakenCourse(StudentID, 'csc600', _Sect, _Units, G600),
@@ -456,6 +538,94 @@ canGraduate(StudentID, msc) :-
     ( GPA >= 2.0
     -> true
     ;  format('Fail: Overall GPA must be >= 2.0 (current = ~1f).~n', [GPA]), fail ).
+
+% MSC program graduation requirements
+canGraduate_noPrint(StudentID, msc) :-
+    % 1. Must pass CSC600 (Graduate Orientation).
+    hasTakenCourse(StudentID, 'csc600', _Sect, _Units, G600),
+    is_passing_grade(G600),
+    % 2. Core courses: at least 3 core courses total, with at least 1 theory core course.
+    count_theory_course(StudentID, NumTheory), 
+    count_systems_course(StudentID, NumSystems),
+    TotalCore is NumTheory + NumSystems,
+    TotalCore >= 3, NumTheory >= 1, NumSystems >= 1,
+    % 3. CSC elective courses: at least 21 units of CSC 500- or 700-level coursework (max 4 special topics count).
+    units_csc500or700_course(StudentID, UnitsCSC),
+    UnitsCSC >= 21,
+    % 4. Total electives: at least 30 units of graduate-level courses (500/700-level, excluding ST511 and outside 591/791, max 4 special topics).
+    units_all_electives_course(StudentID, UnitsAll),
+    UnitsAll >= 30,
+    % % 5. All CSC courses must be 500 level or above.
+    % all_csc_courses_above_500(StudentID),
+    % % 6. If CSC630 is taken, student must have a CSC faculty advisor (MSC program).
+    % csc630_requires_csc_faculty_advisor(StudentID),
+    % 7. Overall GPA on all taken courses >= 3.0.
+    list_taken_courses(TakenCourses, StudentID),
+    TakenCourses \= [], 
+    student_gpa(StudentID, TakenCourses, GPA),
+    GPA >= 2.0.
+
+
+over_six_years_msc(StudentID) :-
+    registrationSemester(StudentID, msc, Sem0, Y0, yes),
+    current_semester(SemC, YC),
+    Delta is YC - Y0,
+    (  Delta > 6
+    ;  Delta =:= 6,
+       sem_index(SemC, IC),
+       sem_index(Sem0, I0),
+       IC > I0
+    ).
+
+
+hasToBeTerminated(StudentID, msc) :-
+    ( over_six_years_msc(StudentID) ->
+        registrationSemester(StudentID, msc, _SemStart, YearStart, yes),
+        format('Student ~w has exceeded the 6-year limit (started in ~w).~n', [StudentID, YearStart])
+    ; \+ continuous_enrollment_from_start(StudentID) ->
+        format('Student ~w violates continuous enrollment (missing semesters).~n', [StudentID])
+    ; 
+      format('Student ~w meets all MSC requirements and will NOT be terminated.~n', [StudentID]),
+      fail
+    ).
+
+% recommendSemesterWork(+StudentID, +Program)
+recommendSemesterWork(StudentID, msc) :-
+    format('Recommendations for MSc student ~w:~n', [StudentID]),
+    (   % 1) Graduation requirements met: print a message only, no course recommendations
+        canGraduate_noPrint(StudentID, msc)
+    ->  format('All MSc requirements are satisfied. No further courses recommended.~n', [])
+    ;   % 2) Graduation requirements not met: generate a list of recommended courses (filtered by the specified rules).
+        % 2.1 Count the number of Special Topics courses (CSC591/CSC791) the student has completed.
+        findall(1,
+                ( hasTakenCourse(StudentID, CID, _S, _U, _G),
+                  (CID == 'csc591' ; CID == 'csc791')
+                ),
+                SpecialOnes),
+        length(SpecialOnes, NumSpecialTaken),
+
+        % 2.2 Count the number of Research courses (CSC630) the student has completed.
+        findall(U,
+                hasTakenCourse(StudentID, 'csc630', _S, U, _G),
+                U630s),
+        (   U630s == [] -> Sum630 is 0
+        ;   sum_list(U630s, Sum630)
+        ),
+
+        % 2.3 Recommend courses based on the rules: select current offerings that the student has not taken and that are within the 500/700 level range.
+        %     If NumSpecialTaken > 4, do not recommend CSC591/CSC791; if Sum630 > 3, do not recommend CSC630.
+        %     Note: is_700_course/1 may not classify CSC791 as a 700-level course, so CSC591/CSC791 are explicitly handled here for inclusion or exclusion.
+        forall(
+            ( currentCourse(C, Sect, _, _, _),
+              within_500_to_799(C),                  % within the 500/700 level range
+              not_taken_for_recommendation(StudentID, C, Sect),  % Exclude CSC591/CSC791 by section; do not exclude CSC630; exclude all other courses by course ID.
+              allow_591_791(C, NumSpecialTaken),     % Do not recommend CSC591/CSC791 if 4 or more such courses have already been taken.
+              allow_630(C, Sum630),                  % Do not recommend CSC630 if 4 or more such credits have already been taken.
+              whyCanOrCannotTake_noPrint(StudentID, C, Sect)    % prerequisite
+            ),
+            format('  ~w (~w)~n', [C, Sect])
+        )
+). 
 
 
 % Subgoal 1: Orientation satisfied (CSC600 with passing grade)
@@ -555,119 +725,26 @@ plan_approved(StudentID) :-
 
 % PhD program graduation requirements
 canGraduate(StudentID, phd) :-
-    % Subgoal 1: Orientation (CSC600)
-    ( orientation_satisfied(StudentID)
-    -> true
-    ;  format('Fail: Student ~w did not satisfy the CSC600 orientation requirement.~n', [StudentID]),
-       fail ),
-
-    % Subgoal 2: Core courses
-    ( core_courses_satisfied(StudentID)
-    -> true
-    ;  format('Fail: Student ~w did not satisfy the core course requirements (>=2 theory, >=2 systems, >=4 total).~n', [StudentID]),
-       fail ),
-
-    % Subgoal 3: 700-level coursework requirement
-    ( seven_hundred_courses_satisfied(StudentID)
-    -> true
-    ;  format('Fail: Student ~w did not satisfy the requirement of taking at least two 700-level courses with passing grades.~n', [StudentID]),
-       fail ),
-
-    % Subgoal 4: Dissertation credits (CSC890 >= 6)
-    ( dissertation_credits_satisfied(StudentID)
-    -> true
-    ;  format('Fail: Student ~w did not complete at least 6 units of CSC890 (dissertation preparation).~n', [StudentID]),
-       fail ),
-
-    % Subgoal 5: Elective + research credit requirement (>= 47)
-    ( elective_research_credits_satisfied(StudentID)
-    -> true
-    ;  format('Fail: Student ~w does not have the required 47+ units of electives and research credits.~n', [StudentID]),
-       fail ),
-
-    % Subgoal 6: Graduate advisor in CSC
-    ( advisor_satisfied(StudentID)
-    -> true
-    ;  format('Fail: Student ~w does not have a valid graduate advisor in CSC.~n', [StudentID]),
-       fail ),
-
-    % Subgoal 7: Advisory committee requirement
-    ( advisory_committee_satisfied(StudentID)
-    -> true
-    ;  format('Fail: Student ~w does not meet the advisory committee requirements (4 members, >=1 outside CSC, >=2 CSC).~n', [StudentID]),
-       fail ),
-
-    % Subgoal 8: PhD Exams (all passed)
-    ( exams_satisfied(StudentID)
-    -> true
-    ;  format('Fail: Student ~w did not pass all required PhD exams (written, oral, defense).~n', [StudentID]),
-       fail ),
-
-    % Subgoal 9: GPA >= 3.0
-    ( overall_gpa_satisfied(StudentID)
-    -> true
-    ;  format('Fail: Student ~w does not have the minimum overall GPA of 3.0.~n', [StudentID]),
-       fail ),
-
-    % Subgoal 10: Plan of work approved
-    ( plan_approved(StudentID)
-    -> true
-    ;  format('Fail: Student ~w does not have an approved Plan of Graduate Work.~n', [StudentID]),
-       fail ).
-
-
-
-% hasToBeTerminated(+StudentID, +Program)
-% Succeeds if the student should be terminated from the program (due to time constraints).
-current_semester(fall, 2025).
-
-sem_index(spring, 0).
-sem_index(fall,   1).
-
-next_term(spring, Y, fall,  Y).
-next_term(fall,   Y, spring, Y1) :- Y1 is Y + 1.
-
-term_seq(Sem0, Y0, SemC, YC, Sem0, Y0).
-term_seq(Sem0, Y0, SemC, YC, Sem,  Y) :-
-    ( Sem0 = SemC, Y0 = YC -> fail
-    ; next_term(Sem0, Y0, S1, Y1),
-      ( Sem = S1, Y = Y1
-      ; term_seq(S1, Y1, SemC, YC, Sem, Y)
-      )
-    ).
-
-over_six_years_msc(StudentID) :-
-    registrationSemester(StudentID, msc, Sem0, Y0, yes),
-    current_semester(SemC, YC),
-    Delta is YC - Y0,
-    (  Delta > 6
-    ;  Delta =:= 6,
-       sem_index(SemC, IC),
-       sem_index(Sem0, I0),
-       IC > I0
-    ).
-
-continuous_enrollment_from_start(StudentID) :-
-    registrationSemester(StudentID, msc, Sem0, Y0, yes),
-    current_semester(SemC, YC),
-    forall(
-      term_seq(Sem0, Y0, SemC, YC, Sem, Y),
-      ( registrationSemester(StudentID, msc, Sem, Y, _) -> true
-      ; format('Student ~w missing enrollment in ~w ~w.~n', [StudentID, Sem, Y]),
-        fail
-      )
-    ).
-
-hasToBeTerminated(StudentID, msc) :-
-    ( over_six_years_msc(StudentID) ->
-        registrationSemester(StudentID, msc, _SemStart, YearStart, yes),
-        format('Student ~w has exceeded the 6-year limit (started in ~w).~n', [StudentID, YearStart])
-    ; \+ continuous_enrollment_from_start(StudentID) ->
-        format('Student ~w violates continuous enrollment (missing semesters).~n', [StudentID])
-    ; 
-      format('Student ~w meets all MSC requirements and will NOT be terminated.~n', [StudentID]),
-      fail
-    ).
+    % Subgoal 1: Check CSC600 orientation requirement
+    orientation_satisfied(StudentID),
+    % Subgoal 2: Check core course requirements (>=2 theory, >=2 systems, total >=4)
+    core_courses_satisfied(StudentID),
+    % Subgoal 3: Check 700-level course requirement (>=2 passed)
+    seven_hundred_courses_satisfied(StudentID),
+    % Subgoal 4: Check dissertation credits (>=6 units of CSC890)
+    dissertation_credits_satisfied(StudentID),
+    % Subgoal 5: Check CSC elective/research credits (>=47 units)
+    elective_research_credits_satisfied(StudentID),
+    % Subgoal 6: Check graduate advisor requirement (CSC faculty)
+    advisor_satisfied(StudentID),
+    % Subgoal 7: Check advisory committee (>=4 members, >=1 outside CSC, >=2 CSC)
+    advisory_committee_satisfied(StudentID),
+    % Subgoal 8: Check PhD exams (written, oral, defense all passed)
+    exams_satisfied(StudentID),
+    % Subgoal 9: Check overall GPA (>=3.0)
+    overall_gpa_satisfied(StudentID),
+    % Subgoal 10: Check plan of graduate work approved
+    plan_approved(StudentID).
 
 
 % Termination criteria for PhD:
@@ -681,7 +758,7 @@ hasToBeTerminated(StudentID, phd) :-
     findall(Reason,
         (
             (
-                over_six_years_msc(StudentID),
+                YearStart =< 2019,
                 \+ (phdOralExamTaken(StudentID, _Sem, _Yr, Outcome), Outcome == 'pass'),
                 Reason = 'Failed to pass Oral Preliminary Exam within 6 years'
             );
@@ -711,192 +788,12 @@ hasToBeTerminated(StudentID, phd) :-
         format('Student ~w is in good standing (no termination criteria met).~n', [StudentID]), fail
     ).
 
-% whyCanOrCannotTake_noPrint(+StudentID, +CourseID, +SectionID)
-% True if the student can take the given course section; false otherwise.
-whyCanOrCannotTake_noPrint(StudentID, CourseID, SectionID) :-
-    % 1. Must be registered for Fall 2025
-    % registrationSemester(StudentID, _, fall, 2025, _),
 
-    % 2. Course must be offered
-    currentCourse(CourseID, SectionID, _, MaxU, Prereq),
+% Helper predicates to check if each requirement is satisfied
+orientation_satisfied_check(StudentID) :-
+    orientation_satisfied(StudentID).
 
-    % 3. Must meet prerequisite
-    meet_prerequisite(StudentID, Prereq),
-
-    % 4. Must not have taken it already (except PhD 800-level)
-    ( \+ hasTakenCourse(StudentID, CourseID, _, _, _)
-    ; ( registrationSemester(StudentID, Program, _, _, _),
-        Program == 'phd',
-        is_800_course(CourseID) )
-    ),
-
-    % 5. Unit limit check
-    MaxU =< 12.
-
-% whyCanOrCannotTake(+StudentID, +CourseID, +SectionID)
-% Checks whether a student can take a given course section and explains the reasons why or why not.
-whyCanOrCannotTake(StudentID, CourseID, SectionID) :-
-    findall(Reason, (
-        (
-            % 1. Not registered
-            \+ registrationSemester(StudentID, _, fall, 2025, _),
-            format(atom(Reason), 'Student ~w is not registered for Fall 2025', [StudentID])
-        );
-        (
-            % 2. Course not offered
-            \+ currentCourse(CourseID, SectionID, _, _, _),
-            format(atom(Reason), 'Course ~w section ~w is not offered in Fall 2025', [CourseID, SectionID])
-        );
-        (
-            % 3. Prerequisite not met
-            currentCourse(CourseID, SectionID, _, _, Prereq),
-            \+ meet_prerequisite(StudentID, Prereq),
-            format(atom(Reason), 'Prerequisite ~w for ~w not met by student ~w', [Prereq, CourseID, StudentID])
-        );
-        (
-            % 4. Already taken (except PhD 800)
-            registrationSemester(StudentID, Program, _, _, _),
-            hasTakenCourse(StudentID, CourseID, _, _, _),
-            \+ (Program == 'phd', is_800_course(CourseID)),
-            format(atom(Reason), 'Student ~w has already taken course ~w', [StudentID, CourseID])
-        );
-        (
-            % 5. Exceeds unit limit
-            currentCourse(CourseID, SectionID, _, MaxU, _),
-            MaxU > 12,
-            format(atom(Reason), 'Course ~w exceeds 12-unit per semester limit (~w units)', [CourseID, MaxU])
-        )
-    ), Reasons),
-
-    ( Reasons = [] ->
-    format('Student ~w can enroll in ~w (section ~w).~n', [StudentID, CourseID, SectionID])
-;
-    format('Student ~w cannot enroll in ~w (section ~w) because:~n', [StudentID, CourseID, SectionID]),
-    sort(Reasons, UniqueReasons),
-    forall(member(R, UniqueReasons), format('- ~w~n', [R])),
-    fail
-).
-
-% MSC program graduation requirements
-canGraduate_noPrint(StudentID, msc) :-
-    % 1. Must pass CSC600 (Graduate Orientation).
-    hasTakenCourse(StudentID, 'csc600', _Sect, _Units, G600),
-    is_passing_grade(G600),
-    % 2. Core courses: at least 3 core courses total, with at least 1 theory core course.
-    count_theory_course(StudentID, NumTheory), 
-    count_systems_course(StudentID, NumSystems),
-    TotalCore is NumTheory + NumSystems,
-    TotalCore >= 3, NumTheory >= 1, NumSystems >= 1,
-    % 3. CSC elective courses: at least 21 units of CSC 500- or 700-level coursework (max 4 special topics count).
-    units_csc500or700_course(StudentID, UnitsCSC),
-    UnitsCSC >= 21,
-    % 4. Total electives: at least 30 units of graduate-level courses (500/700-level, excluding ST511 and outside 591/791, max 4 special topics).
-    units_all_electives_course(StudentID, UnitsAll),
-    UnitsAll >= 30,
-    % % 5. All CSC courses must be 500 level or above.
-    % all_csc_courses_above_500(StudentID),
-    % % 6. If CSC630 is taken, student must have a CSC faculty advisor (MSC program).
-    % csc630_requires_csc_faculty_advisor(StudentID),
-    % 7. Overall GPA on all taken courses >= 3.0.
-    list_taken_courses(TakenCourses, StudentID),
-    TakenCourses \= [], 
-    student_gpa(StudentID, TakenCourses, GPA),
-    GPA >= 2.0.
-
-% recommendSemesterWork(+StudentID, +Program)
-recommendSemesterWork(StudentID, msc) :-
-    format('Recommendations for MSc student ~w:~n', [StudentID]),
-    (   % 1) Graduation requirements met: print a message only, no course recommendations
-        canGraduate_noPrint(StudentID, msc)
-    ->  format('All MSc requirements are satisfied. No further courses recommended.~n', [])
-    ;   % 2) Graduation requirements not met: generate a list of recommended courses (filtered by the specified rules).
-        % 2.1 Count the number of Special Topics courses (CSC591/CSC791) the student has completed.
-        findall(1,
-                ( hasTakenCourse(StudentID, CID, _S, _U, _G),
-                  (CID == 'csc591' ; CID == 'csc791')
-                ),
-                SpecialOnes),
-        length(SpecialOnes, NumSpecialTaken),
-
-        % 2.2 Count the number of Research courses (CSC630) the student has completed.
-        findall(U,
-                hasTakenCourse(StudentID, 'csc630', _S, U, _G),
-                U630s),
-        (   U630s == [] -> Sum630 is 0
-        ;   sum_list(U630s, Sum630)
-        ),
-
-        % 2.3 Recommend courses based on the rules: select current offerings that the student has not taken and that are within the 500/700 level range.
-        %     If NumSpecialTaken > 4, do not recommend CSC591/CSC791; if Sum630 > 3, do not recommend CSC630.
-        %     Note: is_700_course/1 may not classify CSC791 as a 700-level course, so CSC591/CSC791 are explicitly handled here for inclusion or exclusion.
-        forall(
-            ( currentCourse(C, Sect, _, _, _),
-              within_500_to_799(C),                  % within the 500/700 level range
-              not_taken_for_recommendation(StudentID, C, Sect),  % Exclude CSC591/CSC791 by section; do not exclude CSC630; exclude all other courses by course ID.
-              allow_591_791(C, NumSpecialTaken),     % Do not recommend CSC591/CSC791 if 4 or more such courses have already been taken.
-              allow_630(C, Sum630),                  % Do not recommend CSC630 if 4 or more such credits have already been taken.
-              whyCanOrCannotTake_noPrint(StudentID, C, Sect)    % prerequisite
-            ),
-            format('  ~w (~w)~n', [C, Sect])
-        )
-    ).
-
-within_500_to_799(CID) :-
-    atom_concat('csc', NumAtom, CID),
-    atom_number(NumAtom, Num),
-    Num >= 500, Num < 800.
-
-not_taken_for_recommendation(StudentID, CID, Sect) :-
-    ( CID == 'csc591' ; CID == 'csc791' ) ->
-        \+ hasTakenCourse(StudentID, CID, Sect, _, _)
-    ; CID == 'csc630' ->
-        true
-    ; \+ hasTakenCourse(StudentID, CID, _, _, _).
-
-level_500_or_700(CID) :-
-    ( is_500_course(CID) ; is_700_course(CID) ; CID == 'csc591' ; CID == 'csc791' ).
-
-allow_591_791(CID, NumSpecialTaken) :-
-    ( CID == 'csc591' ; CID == 'csc791' )
-    -> NumSpecialTaken < 4
-    ;  true.
-
-allow_630(CID, Sum630Units) :-
-    ( CID == 'csc630' )
-    -> Sum630Units < 3
-    ;  true.
-
-
-% Subgoal 1: Recommend orientation (CSC600)
-recommend_orientation(StudentID) :-
-    ( orientation_satisfied(StudentID) ->
-        true  % Orientation requirement met, nothing to recommend
-    ;   % Orientation not satisfied, check status and recommend
-        ( hasTakenCourse(StudentID, 'csc600', _, _, Grade) ->
-            % Student took CSC600 but didn't pass
-            ( \+ is_passing_grade(Grade) ->
-                format('Unmet Requirement: Retake CSC600 (current grade insufficient)~n', []),
-                ( currentCourse('csc600', SectionID, MinU, MaxU, _) ->
-                    format('  Available course:~n', []),
-                    format('  - csc600 (~w, ~w-~w units)~n', [SectionID, MinU, MaxU])
-                ;   true
-                )
-            ;   true
-            )
-        ;   % Student has not taken CSC600 at all
-            format('Unmet Requirement: CSC600 Orientation~n', []),
-            ( currentCourse('csc600', SectionID, MinU, MaxU, _) ->
-                format('  Available course:~n', []),
-                format('  - csc600 (~w, ~w-~w units)~n', [SectionID, MinU, MaxU])
-            ;   format('  Note: CSC600 not offered in Fall 2025~n', [])
-            )
-        )
-    ).
-
-
-% Subgoal 2: Recommend core courses
-recommend_core_courses(StudentID) :-
-    % Count current theory and systems courses with grade >= 3.5
+core_courses_satisfied_check(StudentID) :-
     findall(CID,
             (hasTakenCourse(StudentID, CID, _, _, Grade),
              is_theory_course(CID),
@@ -913,57 +810,10 @@ recommend_core_courses(StudentID) :-
     sort(SystemsCourses, UniqueSystems),
     length(UniqueSystems, NumSystems),
     
-    TotalCore is NumTheory + NumSystems,
-    
-    % Calculate needs
-    NeedTheory is max(0, 2 - NumTheory),
-    NeedSystems is max(0, 2 - NumSystems),
-    NeedTotal is max(0, 4 - TotalCore),
-    
-    % If needs exist, print recommendations
-    ( (NeedTheory > 0 ; NeedSystems > 0) ->
-        format('Unmet Requirement: Core Courses~n', []),
-        ( NeedTheory > 0 ->
-            format('  Need ~w more theory core course(s) with grade >=3.5~n', [NeedTheory])
-        ;   true
-        ),
-        ( NeedSystems > 0 ->
-            format('  Need ~w more systems core course(s) with grade >=3.5~n', [NeedSystems])
-        ;   true
-        ),
-        format('  Available core courses in Fall 2025:~n', []),
-        
-        % Recommend theory courses if needed
-        ( NeedTheory > 0 ->
-            forall(
-                ( currentCourse(CourseID, SectionID, MinU, MaxU, Prereq),
-                  is_theory_course(CourseID),
-                  meet_prerequisite(StudentID, Prereq),
-                  \+ hasTakenCourse(StudentID, CourseID, _, _, _)
-                ),
-                format('  - ~w (~w, ~w-~w units) [Theory Core]~n', [CourseID, SectionID, MinU, MaxU])
-            )
-        ;   true
-        ),
-        
-        % Recommend systems courses if needed
-        ( NeedSystems > 0 ->
-            forall(
-                ( currentCourse(CourseID, SectionID, MinU, MaxU, Prereq),
-                  is_systems_course(CourseID),
-                  meet_prerequisite(StudentID, Prereq),
-                  \+ hasTakenCourse(StudentID, CourseID, _, _, _)
-                ),
-                format('  - ~w (~w, ~w-~w units) [Systems Core]~n', [CourseID, SectionID, MinU, MaxU])
-            )
-        ;   true
-        )
-    ;   true
-    ).
+    NumTheory >= 2,
+    NumSystems >= 2.
 
-% Subgoal 3: Recommend 700-level courses
-recommend_seven_hundred_courses(StudentID) :-
-    % Count 700-level courses with grade >= 3.0
+seven_hundred_satisfied_check(StudentID) :-
     findall(CID,
             (hasTakenCourse(StudentID, CID, _, _, Grade),
              is_700_course(CID),
@@ -971,210 +821,91 @@ recommend_seven_hundred_courses(StudentID) :-
             Courses700),
     sort(Courses700, UniqueCourses700),
     length(UniqueCourses700, Count700),
-    
-    % Calculate need
-    Need700 is max(0, 2 - Count700),
-    
-    % If need exists, print recommendations
-    ( Need700 > 0 ->
-        format('Unmet Requirement: 700-level Courses~n', []),
-        format('  Need ~w more 700-level course(s) with grade >=3.0~n', [Need700]),
-        format('  Available 700-level courses in Fall 2025:~n', []),
-        
-        forall(
-            ( currentCourse(CourseID, SectionID, MinU, MaxU, Prereq),
-              is_700_course(CourseID),
-              meet_prerequisite(StudentID, Prereq),
-              \+ hasTakenCourse(StudentID, CourseID, _, _, _)
-            ),
-            format('  - ~w (~w, ~w-~w units)~n', [CourseID, SectionID, MinU, MaxU])
-        )
-    ;   true
-    ).
+    Count700 >= 2.
 
-% Subgoal 4: Recommend dissertation credits (CSC890)
-recommend_dissertation_credits(StudentID) :-
-    % Calculate current CSC890 units
+dissertation_satisfied_check(StudentID) :-
     findall(Units,
             hasTakenCourse(StudentID, 'csc890', _, Units, _),
             UnitsList890),
     sum_list(UnitsList890, TotalUnits890),
-    
-    % Calculate need
-    NeedUnits890 is max(0, 6 - TotalUnits890),
-    
-    % If need exists, print recommendations
-    ( NeedUnits890 > 0 ->
-        format('Unmet Requirement: Dissertation Credits (CSC890)~n', []),
-        format('  Need ~w more units of CSC890~n', [NeedUnits890]),
-        format('  Available option in Fall 2025:~n', []),
-        
-        ( currentCourse('csc890', SectionID, MinU, MaxU, Prereq) ->
-            ( meet_prerequisite(StudentID, Prereq) ->
-                format('  - csc890 (~w, ~w-~w units)~n', [SectionID, MinU, MaxU])
-            ;   true
-            )
-        ;   format('  Note: CSC890 not offered in Fall 2025~n', [])
-        )
-    ;   true
-    ).
+    TotalUnits890 >= 6.
 
-% Subgoal 5: Recommend elective/research credits
-recommend_elective_research_credits(StudentID) :-
-    % Calculate current elective/research units
+elective_research_satisfied_check(StudentID) :-
     units_csc_elective_research_phd(StudentID, CurrentUnits),
-    
-    % Calculate need
-    NeedUnits is max(0, 47 - CurrentUnits),
-    
-    % If need exists, print recommendations
-    ( NeedUnits > 0 ->
-        format('Unmet Requirement: CSC Elective/Research Credits~n', []),
-        format('  Need ~w more units to reach 47 total~n', [NeedUnits]),
-        format('  Available courses in Fall 2025:~n', []),
-        
-        % Collect and categorize eligible courses
-        findall(course(CourseID, SectionID, MinU, MaxU, Category),
-                ( currentCourse(CourseID, SectionID, MinU, MaxU, Prereq),
-                  is_cscElectivesOrResearch(CourseID),
-                  meet_prerequisite(StudentID, Prereq),
-                  ( \+ hasTakenCourse(StudentID, CourseID, _, _, _)
-                  ; (is_800_course(CourseID))
-                  ),
-                  % Determine category
-                  ( CourseID == 'csc890' -> Category = 'Dissertation'
-                  ; member(CourseID, ['csc830', 'csc893', 'csc895', 'csc896']) -> Category = 'Research'
-                  ; is_500_course(CourseID) -> Category = '500-level Elective'
-                  ; is_700_course(CourseID) -> Category = '700-level Elective'
-                  ; is_591or791_course(CourseID) -> Category = 'Special Topics'
-                  ; Category = 'Other'
-                  )
-                ),
-                AllCourses),
-        
-        % Print research courses
-        format('  Research courses:~n', []),
-        forall(
-            member(course(CID, Sect, MinU, MaxU, Cat), AllCourses),
-            ( (Cat == 'Research' ; Cat == 'Dissertation') ->
-                format('    - ~w (~w, ~w-~w units)~n', [CID, Sect, MinU, MaxU])
-            ;   true
-            )
-        ),
-        
-        % Print 500-level electives
-        format('  500-level electives:~n', []),
-        forall(
-            member(course(CID, Sect, MinU, MaxU, '500-level Elective'), AllCourses),
-            format('    - ~w (~w, ~w-~w units)~n', [CID, Sect, MinU, MaxU])
-        ),
-        
-        % Print 700-level electives
-        format('  700-level electives:~n', []),
-        forall(
-            member(course(CID, Sect, MinU, MaxU, '700-level Elective'), AllCourses),
-            format('    - ~w (~w, ~w-~w units)~n', [CID, Sect, MinU, MaxU])
-        ),
-        
-        % Print special topics
-        format('  Special topics:~n', []),
-        forall(
-            member(course(CID, Sect, MinU, MaxU, 'Special Topics'), AllCourses),
-            format('    - ~w (~w, ~w-~w units)~n', [CID, Sect, MinU, MaxU])
-        ),
-        
-        % Print notes
-        format('  Notes:~n', []),
-        format('  - CSC591/791 count toward total (max 4 courses)~n', []),
-        
-        % Check CSC890 cap
-        findall(U, hasTakenCourse(StudentID, 'csc890', _, U, _), U890List),
-        sum_list(U890List, Sum890),
-        ( Sum890 >= 6 ->
-            format('  - CSC890 already at 6-unit cap for this calculation~n', [])
-        ;   format('  - CSC890 counts toward total (max 6 units)~n', [])
+    CurrentUnits >= 47.
+
+exams_satisfied_check(StudentID) :-
+    % Check written exam
+    ( current_predicate(phdWrittenExamTaken/4) ->
+        ( phdWrittenExamTaken(StudentID, _, _, WrittenOutcome) ->
+            (WrittenOutcome == pass ; (number(WrittenOutcome), WrittenOutcome >= 2.0))
+        ;   fail
         )
-    ;   true
-    ).
-
-% Subgoal 6: Recommend exams
-recommend_exams(StudentID) :-
-    % Initialize list of exams needed
-    findall(Exam,
-            ( (   (\+ phdWrittenExamTaken(StudentID, _, _, _) ; 
-                   (phdWrittenExamTaken(StudentID, _, _, WrittenOutcome), 
-                    \+ (WrittenOutcome == pass ; (number(WrittenOutcome), WrittenOutcome >= 2.0))))
-              ->  Exam = 'PhD Written Preliminary Exam'
-              ;   fail
-              )
-            ; (   (\+ phdOralExamTaken(StudentID, _, _, _) ; 
-                   (phdOralExamTaken(StudentID, _, _, OralOutcome), 
-                    \+ (OralOutcome == pass ; (number(OralOutcome), OralOutcome >= 2.0))))
-              ->  Exam = 'PhD Oral Preliminary Exam'
-              ;   fail
-              )
-            ; (   (\+ phdDefenseTaken(StudentID, _, _, _) ; 
-                   (phdDefenseTaken(StudentID, _, _, DefenseOutcome), 
-                    \+ (DefenseOutcome == pass ; (number(DefenseOutcome), DefenseOutcome >= 2.0))))
-              ->  Exam = 'PhD Dissertation Defense'
-              ;   fail
-              )
-            ),
-            ExamsNeeded),
-    
-    % If any exams needed, print them
-    ( ExamsNeeded \= [] ->
-        format('Unmet Requirement: PhD Examinations~n', []),
-        format('  Exams needed:~n', []),
-        forall(
-            member(ExamName, ExamsNeeded),
-            format('  - ~w~n', [ExamName])
+    ;   fail
+    ),
+    % Check oral exam
+    ( current_predicate(phdOralExamTaken/4) ->
+        ( phdOralExamTaken(StudentID, _, _, OralOutcome) ->
+            (OralOutcome == pass ; (number(OralOutcome), OralOutcome >= 2.0))
+        ;   fail
         )
-    ;   true
+    ;   fail
+    ),
+    % Check defense
+    ( current_predicate(phdDefenseTaken/4) ->
+        ( phdDefenseTaken(StudentID, _, _, DefenseOutcome) ->
+            (DefenseOutcome == pass ; (number(DefenseOutcome), DefenseOutcome >= 2.0))
+        ;   fail
+        )
+    ;   fail
     ).
 
-% Subgoal 7: Recommend GPA improvement
-recommend_gpa_improvement(StudentID) :-
-    ( overall_gpa_satisfied(StudentID) ->
-        true  % GPA requirement met, nothing to recommend
-    ;   % GPA not satisfied
-        format('Unmet Requirement: Overall GPA~n', []),
-        list_taken_courses(TakenCourses, StudentID),
-        student_gpa(StudentID, TakenCourses, CurrentGPA),
-        format('  Current GPA: ~2f~n', [CurrentGPA]),
-        format('  Required GPA: 3.0~n', []),
-        format('  Suggested actions:~n', []),
-        format('  - Take additional courses to raise average~n', []),
-        format('  - Focus on courses where you can achieve high grades~n', []),
-        format('  - Consider strategies to improve performance in future coursework~n', [])
-    ).
+gpa_satisfied_check(StudentID) :-
+    overall_gpa_satisfied(StudentID).
 
-% Subgoal 8: Provide credit requirement notes
-provide_credit_notes(StudentID) :-
-    format('~n', []),
-    format('=== Important Notes for Fall 2025 ===~n', []),
-    format('- Total semester credits must be between 9-12 units~n', []),
-    format('- Exception: Students completing dissertation defense may register for <9 units~n', []),
-    format('- Prerequisites must be satisfied for all courses~n', []),
-    format('- Courses cannot be retaken unless they are 800-level~n', []),
-    format('- Maximum of 4 CSC591/791 courses count toward graduation~n', []),
-    format('- CSC890 units are capped at 6 for elective/research credit calculation~n', []).
+% Check if all PhD requirements are satisfied
+all_phd_requirements_satisfied(StudentID) :-
+    orientation_satisfied_check(StudentID),
+    core_courses_satisfied_check(StudentID),
+    seven_hundred_satisfied_check(StudentID),
+    dissertation_satisfied_check(StudentID),
+    elective_research_satisfied_check(StudentID),
+    exams_satisfied_check(StudentID),
+    gpa_satisfied_check(StudentID).
 
-% main recommendation predicate for PhD students
+% Helper to check if CSC591/791 recommendation is allowed
+allow_591_791(CID, NumSpecialTaken) :-
+    ( CID == 'csc591' ; CID == 'csc791' )
+    -> NumSpecialTaken < 4
+    ;  true.
+
+% Main recommendation predicate for PhD students
 recommendSemesterWork(StudentID, phd) :-
-    % Subgoal 1: Check orientation and recommend if needed
-    recommend_orientation(StudentID),
-    % Subgoal 2: Check core courses and recommend if needed
-    recommend_core_courses(StudentID),
-    % Subgoal 3: Check 700-level courses and recommend if needed
-    recommend_seven_hundred_courses(StudentID),
-    % Subgoal 4: Check dissertation credits and recommend if needed
-    recommend_dissertation_credits(StudentID),
-    % Subgoal 5: Check elective/research credits and recommend if needed
-    recommend_elective_research_credits(StudentID),
-    % Subgoal 6: Check exams and recommend if needed
-    recommend_exams(StudentID),
-    % Subgoal 7: Check GPA and recommend if needed
-    recommend_gpa_improvement(StudentID),
-    % Subgoal 8: Provide final notes about credit requirements
-    provide_credit_notes(StudentID).
+    format('Recommendations for PhD student ~w:~n', [StudentID]),
+    (   % All requirements met: print message only, no course recommendations
+        all_phd_requirements_satisfied(StudentID)
+    ->  format('All PhD requirements are satisfied. No further courses recommended.~n', [])
+    ;   % Requirements not met: generate list of recommended courses
+        
+        % Count the number of Special Topics courses (CSC591/CSC791) the student has completed
+        findall(1,
+                ( hasTakenCourse(StudentID, CID, _S, _U, _G),
+                  (CID == 'csc591' ; CID == 'csc791')
+                ),
+                SpecialOnes),
+        length(SpecialOnes, NumSpecialTaken),
+        
+        % List eligible courses
+        forall(
+            ( currentCourse(CourseID, SectionID, _, _, Prereq),
+              is_cscElectivesOrResearch(CourseID),
+              meet_prerequisite(StudentID, Prereq),
+              ( \+ hasTakenCourse(StudentID, CourseID, _, _, _)
+              ; is_800_course(CourseID)
+              ),
+              allow_591_791(CourseID, NumSpecialTaken)  % Don't recommend CSC591/791 if already taken 4
+            ),
+            format('  ~w (~w)~n', [CourseID, SectionID])
+        )
+    ).
+
