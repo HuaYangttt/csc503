@@ -715,7 +715,7 @@ hasToBeTerminated(StudentID, phd) :-
 % True if the student can take the given course section; false otherwise.
 whyCanOrCannotTake_noPrint(StudentID, CourseID, SectionID) :-
     % 1. Must be registered for Fall 2025
-    registrationSemester(StudentID, _, fall, 2025, _),
+    % registrationSemester(StudentID, _, fall, 2025, _),
 
     % 2. Course must be offered
     currentCourse(CourseID, SectionID, _, MaxU, Prereq),
@@ -806,11 +806,6 @@ canGraduate_noPrint(StudentID, msc) :-
 % recommendSemesterWork(+StudentID, +Program)
 recommendSemesterWork(StudentID, msc) :-
     format('Recommendations for MSc student ~w:~n', [StudentID]),
-    (   registrationSemester(StudentID, msc, fall, 2025, _)
-    ->  true
-    ;   format('Fail: Student ~w has not registered for Fall 2025. Cannot provide recommendations.~n', [StudentID]),
-        fail
-    ),
     (   % 1) Graduation requirements met: print a message only, no course recommendations
         canGraduate_noPrint(StudentID, msc)
     ->  format('All MSc requirements are satisfied. No further courses recommended.~n', [])
