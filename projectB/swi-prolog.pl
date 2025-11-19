@@ -437,8 +437,6 @@ term_seq(Sem0, Y0, SemC, YC, Sem,  Y) :-
 % whyCanOrCannotTake_noPrint(+StudentID, +CourseID, +SectionID)
 % True if the student can take the given course section; false otherwise.
 whyCanOrCannotTake_noPrint(StudentID, CourseID, SectionID) :-
-    % 1. Must be registered for Fall 2025
-    registrationSemester(StudentID, _, fall, 2025, _),
 
     % 2. Course must be offered
     currentCourse(CourseID, SectionID, _, MaxU, Prereq),
@@ -725,27 +723,65 @@ plan_approved(StudentID) :-
 
 % PhD program graduation requirements
 canGraduate(StudentID, phd) :-
-    % Subgoal 1: Check CSC600 orientation requirement
-    orientation_satisfied(StudentID),
-    % Subgoal 2: Check core course requirements (>=2 theory, >=2 systems, total >=4)
-    core_courses_satisfied(StudentID),
-    % Subgoal 3: Check 700-level course requirement (>=2 passed)
-    seven_hundred_courses_satisfied(StudentID),
-    % Subgoal 4: Check dissertation credits (>=6 units of CSC890)
-    dissertation_credits_satisfied(StudentID),
-    % Subgoal 5: Check CSC elective/research credits (>=47 units)
-    elective_research_credits_satisfied(StudentID),
-    % Subgoal 6: Check graduate advisor requirement (CSC faculty)
-    advisor_satisfied(StudentID),
-    % Subgoal 7: Check advisory committee (>=4 members, >=1 outside CSC, >=2 CSC)
-    advisory_committee_satisfied(StudentID),
-    % Subgoal 8: Check PhD exams (written, oral, defense all passed)
-    exams_satisfied(StudentID),
-    % Subgoal 9: Check overall GPA (>=3.0)
-    overall_gpa_satisfied(StudentID),
-    % Subgoal 10: Check plan of graduate work approved
-    plan_approved(StudentID).
+    % Subgoal 1: Orientation (CSC600)
+    ( orientation_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w did not satisfy the CSC600 orientation requirement.~n', [StudentID]),
+       fail ),
 
+    % Subgoal 2: Core courses
+    ( core_courses_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w did not satisfy the core course requirements (>=2 theory, >=2 systems, >=4 total).~n', [StudentID]),
+       fail ),
+
+    % Subgoal 3: 700-level coursework requirement
+    ( seven_hundred_courses_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w did not satisfy the requirement of taking at least two 700-level courses with passing grades.~n', [StudentID]),
+       fail ),
+
+    % Subgoal 4: Dissertation credits (CSC890 >= 6)
+    ( dissertation_credits_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w did not complete at least 6 units of CSC890 (dissertation preparation).~n', [StudentID]),
+       fail ),
+
+    % Subgoal 5: Elective + research credit requirement (>= 47)
+    ( elective_research_credits_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w does not have the required 47+ units of electives and research credits.~n', [StudentID]),
+       fail ),
+
+    % Subgoal 6: Graduate advisor in CSC
+    ( advisor_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w does not have a valid graduate advisor in CSC.~n', [StudentID]),
+       fail ),
+
+    % Subgoal 7: Advisory committee requirement
+    ( advisory_committee_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w does not meet the advisory committee requirements (4 members, >=1 outside CSC, >=2 CSC).~n', [StudentID]),
+       fail ),
+
+    % Subgoal 8: PhD Exams (all passed)
+    ( exams_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w did not pass all required PhD exams (written, oral, defense).~n', [StudentID]),
+       fail ),
+
+    % Subgoal 9: GPA >= 3.0
+    ( overall_gpa_satisfied(StudentID)
+    -> true
+    ;  format('Fail: Student ~w does not have the minimum overall GPA of 3.0.~n', [StudentID]),
+       fail ),
+
+    % Subgoal 10: Plan of work approved
+    ( plan_approved(StudentID)
+    -> true
+    ;  format('Fail: Student ~w does not have an approved Plan of Graduate Work.~n', [StudentID]),
+       fail ).
 
 % Termination criteria for PhD:
 % - Failing to pass the Oral Preliminary exam within 6 years from admission.
@@ -873,10 +909,30 @@ all_phd_requirements_satisfied(StudentID) :-
     exams_satisfied_check(StudentID),
     gpa_satisfied_check(StudentID).
 
+within_500_to_799(CID) :-
+    atom_concat('csc', NumAtom, CID),
+    atom_number(NumAtom, Num),
+    Num >= 500, Num < 800.
+
+not_taken_for_recommendation(StudentID, CID, Sect) :-
+    ( CID == 'csc591' ; CID == 'csc791' ) ->
+        \+ hasTakenCourse(StudentID, CID, Sect, _, _)
+    ; CID == 'csc630' ->
+        true
+    ; \+ hasTakenCourse(StudentID, CID, _, _, _).
+
+level_500_or_700(CID) :-
+    ( is_500_course(CID) ; is_700_course(CID) ; CID == 'csc591' ; CID == 'csc791' ).
+
 % Helper to check if CSC591/791 recommendation is allowed
 allow_591_791(CID, NumSpecialTaken) :-
     ( CID == 'csc591' ; CID == 'csc791' )
     -> NumSpecialTaken < 4
+    ;  true.
+
+allow_630(CID, Sum630Units) :-
+    ( CID == 'csc630' )
+    -> Sum630Units < 3
     ;  true.
 
 % Main recommendation predicate for PhD students
