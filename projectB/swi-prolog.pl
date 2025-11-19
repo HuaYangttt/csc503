@@ -365,9 +365,8 @@ meet_prerequisite(_StudentID, none) :- !.
 
 % Prerequisite 'phd' requires the student to be in the PhD program in Fall 2025.
 meet_prerequisite(StudentID, phd) :-
-    registrationSemester(StudentID, Program, Semester, Year, _),
-    Semester == 'fall', Year == 2025,
-    Program == 'phd'.
+    registrationSemester(StudentID, Program, _, _, _),
+    Program == 'phd', !.
 
 % Prerequisite 'bavg' requires a B average (3.0 GPA) in technical courses.
 meet_prerequisite(StudentID, bavg) :-
@@ -483,6 +482,33 @@ units_all_electives_course(StudentID, TotalUnits) :-
     sum_list(CSC630UnitsList, SumCSC630Raw),
     ( SumCSC630Raw > 3 -> SumCSC630 = 3 ; SumCSC630 = SumCSC630Raw ),
     TotalUnits is SumRegular + SumSpecialLimited + SumCSC630.
+
+units_all_electives_course_phd(StudentID, TotalUnits) :-
+    % Sum units of CSC 500/700-level courses (excluding 591/791) 
+    % or specific 800-level research courses (csc830, csc893, csc895, csc896)
+    findall(Units,
+            (hasTakenCourse(StudentID, CID, _Sect, Units, _Grade),
+             (((is_500_course(CID); is_700_course(CID)), 
+               is_not_st511orother591orother791(CID));
+              member(CID, ['csc830', 'csc893', 'csc895', 'csc896']))),
+            UnitsListRegular),
+    sum_list(UnitsListRegular, SumRegular),
+    
+    % Collect units from csc890, capped at 6
+    findall(Units,
+            hasTakenCourse(StudentID, 'csc890', _Sect, Units, _Grade),
+            CSC890UnitsList),
+    sum_list(CSC890UnitsList, Sum890Raw),
+    (Sum890Raw > 6 -> Sum890Limited = 6 ; Sum890Limited = Sum890Raw),
+    
+    % Collect units of all CSC591/CSC791 courses (unlimited for PhD)
+    findall(Units,
+            (hasTakenCourse(StudentID, CID, _Sect, Units, _Grade),
+             (CID == 'csc591'; CID == 'csc791')),
+            SpecialUnitsList),
+    sum_list(SpecialUnitsList, SumSpecial),
+    
+    TotalUnits is SumRegular + Sum890Limited + SumSpecial.
 
 % all_csc_courses_above_500(+StudentID)
 all_csc_courses_above_500(StudentID) :-
@@ -1017,7 +1043,7 @@ dissertation_satisfied_check(StudentID) :-
 
 elective_research_satisfied_check(StudentID) :-
     units_csc_elective_research_phd(StudentID, CurrentUnits),
-    CurrentUnits >= 47.
+    CurrentUnits >= 72.
 
 exams_satisfied_check(StudentID) :-
     % Check written exam
@@ -1093,12 +1119,13 @@ recommendSemesterWork(StudentID, phd) :-
         % List eligible courses
         forall(
             ( currentCourse(CourseID, SectionID, _, _, Prereq),
-              is_cscElectivesOrResearch(CourseID),
-              meet_prerequisite(StudentID, Prereq),
-              ( \+ hasTakenCourse(StudentID, CourseID, _, _, _)
-              ; is_800_course(CourseID)
-              ),
-              
+            (is_cscElectivesOrResearch(CourseID)),
+            meet_prerequisite(StudentID, Prereq),
+            ( is_800_course(CourseID)
+            -> true
+            ; \+ hasTakenCourse(StudentID, CourseID, _, _, _)
+            )
+            ),
             format('  ~w (~w)~n', [CourseID, SectionID])
         )
     ).
