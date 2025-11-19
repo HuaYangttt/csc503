@@ -1073,16 +1073,6 @@ not_taken_for_recommendation(StudentID, CID, Sect) :-
 level_500_or_700(CID) :-
     ( is_500_course(CID) ; is_700_course(CID) ; CID == 'csc591' ; CID == 'csc791' ).
 
-% Helper to check if CSC591/791 recommendation is allowed
-allow_591_791(CID, NumSpecialTaken) :-
-    ( CID == 'csc591' ; CID == 'csc791' )
-    -> NumSpecialTaken < 4
-    ;  true.
-
-allow_630(CID, Sum630Units) :-
-    ( CID == 'csc630' )
-    -> Sum630Units < 3
-    ;  true.
 
 % Main recommendation predicate for PhD students
 recommendSemesterWork(StudentID, phd) :-
@@ -1108,8 +1098,7 @@ recommendSemesterWork(StudentID, phd) :-
               ( \+ hasTakenCourse(StudentID, CourseID, _, _, _)
               ; is_800_course(CourseID)
               ),
-              allow_591_791(CourseID, NumSpecialTaken)  % Don't recommend CSC591/791 if already taken 4
-            ),
+              
             format('  ~w (~w)~n', [CourseID, SectionID])
         )
     ).
