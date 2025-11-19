@@ -445,7 +445,7 @@ whyCanOrCannotTake_noPrint(StudentID, CourseID, SectionID) :-
     meet_prerequisite(StudentID, Prereq),
 
     % 4. Must not have taken it already (except PhD 800-level)
-    ( \+ hasTakenCourse(StudentID, CourseID, _, _, _)
+    ( \+ hasTakenCourse(StudentID, CourseID, SectionID, _, _)
     ; ( registrationSemester(StudentID, Program, _, _, _),
         Program == 'phd',
         is_800_course(CourseID) )
@@ -477,7 +477,7 @@ whyCanOrCannotTake(StudentID, CourseID, SectionID) :-
         (
             % 4. Already taken (except PhD 800)
             registrationSemester(StudentID, Program, _, _, _),
-            hasTakenCourse(StudentID, CourseID, _, _, _),
+            hasTakenCourse(StudentID, CourseID, SectionID, _, _),
             \+ (Program == 'phd', is_800_course(CourseID)),
             format(atom(Reason), 'Student ~w has already taken course ~w', [StudentID, CourseID])
         );
