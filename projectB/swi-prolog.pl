@@ -241,9 +241,9 @@ currentCourse('csc591','s028',1,6,'bavg').
 
 
 % is_passing_grade(+Grade)/1
-% Checks if the numeric grade is a passing grade (2.0 or above, which corresponds roughly to a B or better).
+% Checks if the numeric grade is a passing grade (3.0 or above, which corresponds roughly to a B or better).
 is_passing_grade(G) :-
-    (number(G), G >= 2.0).
+    (number(G), G >= 3.0).
 
 
 % is_400_course(+CourseID)/1
@@ -311,7 +311,7 @@ is_cscElectivesOrResearch(CourseID) :-
 is_technical_course(CourseID) :-
     % A technical course is any course at the graduate level (400 or above) 
     % that is not ST511 and not a 591/791 from another department.
-    (is_400_course(CourseID); is_500_course(CourseID); is_700_course(CourseID); is_800_course(CourseID); is_591or791_course(CourseID)),
+    (is_400_course(CourseID); is_500_course(CourseID); is_700_course(CourseID); is_591or791_course(CourseID)),
     is_not_st511orother591orother791(CourseID).
 
 % is_not_st511orother591orother791(+CourseID)
@@ -376,7 +376,7 @@ meet_prerequisite(StudentID, bavg) :-
     Grades \= [],
     sum_list(Grades, Sum), length(Grades, Count),
     AvgGrade is Sum / Count,
-    AvgGrade >= 2.0. 
+    AvgGrade >= 3.0. 
 
 % Prerequisite 'cscmajor' requires the student to be a CSC graduate student (MSC or PhD).
 meet_prerequisite(StudentID, cscmajor) :-
@@ -400,7 +400,7 @@ meet_prerequisite(StudentID, PrereqCourse) :-
 % Counts how many theory core courses the student has passed with a grade >= B.
 count_theory_course(StudentID, NumTheoryCourses) :-
     findall(C, 
-            (hasTakenCourse(StudentID, C, _Sect, _Units, Grade), is_theory_course(C), Grade >= 2.0), 
+            (hasTakenCourse(StudentID, C, _Sect, _Units, Grade), is_theory_course(C), Grade >= 3.0), 
             TheoryCourses),
     sort(TheoryCourses, UniqueTheoryCourses),
     length(UniqueTheoryCourses, NumTheoryCourses).
@@ -409,7 +409,7 @@ count_theory_course(StudentID, NumTheoryCourses) :-
 % Counts how many systems core courses the student has passed with a grade >= B.
 count_systems_course(StudentID, NumSystemsCourses) :-
     findall(C, 
-            (hasTakenCourse(StudentID, C, _Sect, _Units, Grade), is_systems_course(C), Grade >= 2.0), 
+            (hasTakenCourse(StudentID, C, _Sect, _Units, Grade), is_systems_course(C), Grade >= 3.0), 
             SystemsCourses),
     sort(SystemsCourses, S0),
     normalize_subs(S0, UniqueSystemsCourses),
@@ -708,9 +708,9 @@ canGraduate(StudentID, msc) :-
     -> true
     ;  format('Fail: No completed courses found to compute GPA.~n', []), fail ),
     student_gpa(StudentID, TakenCourses, GPA),
-    ( GPA >= 2.0
+    ( GPA >= 3.0
     -> true
-    ;  format('Fail: Overall GPA must be >= 2.0 (current = ~1f).~n', [GPA]), fail ).
+    ;  format('Fail: Overall GPA must be >= 3.0 (current = ~1f).~n', [GPA]), fail ).
 
 % MSC program graduation requirements
 canGraduate_noPrint(StudentID, msc) :-
@@ -736,7 +736,7 @@ canGraduate_noPrint(StudentID, msc) :-
     list_taken_courses(TakenCourses, StudentID),
     TakenCourses \= [], 
     student_gpa(StudentID, TakenCourses, GPA),
-    GPA >= 2.0.
+    GPA >= 3.0.
 
 
 over_six_years_msc(StudentID) :-
@@ -986,7 +986,7 @@ hasToBeTerminated(StudentID, phd) :-
                 findall(U, (hasTakenCourse(StudentID, _CID, _Sect, U, Grade), number(Grade)), UnitsList),
                 sum_list(UnitsList, SumUnits), SumUnits >= 18,
                 list_taken_courses(TakenList, StudentID), TakenList \= [],
-                student_gpa(StudentID, TakenList, GPA), GPA < 2.0,
+                student_gpa(StudentID, TakenList, GPA), GPA < 3.0,
                 Reason = 'Accumulated >=18 credits with GPA below 3.0'
             )
         ),
@@ -1103,30 +1103,26 @@ level_500_or_700(CID) :-
 % Main recommendation predicate for PhD students
 recommendSemesterWork(StudentID, phd) :-
     format('Recommendations for PhD student ~w:~n', [StudentID]),
-    (   % All requirements met: print message only, no course recommendations
-        all_phd_requirements_satisfied(StudentID)
+    (   all_phd_requirements_satisfied(StudentID)
     ->  format('All PhD requirements are satisfied. No further courses recommended.~n', [])
-    ;   % Requirements not met: generate list of recommended courses
-        
-        % Count the number of Special Topics courses (CSC591/CSC791) the student has completed
-        findall(1,
+    ;   findall(1,
                 ( hasTakenCourse(StudentID, CID, _S, _U, _G),
                   (CID == 'csc591' ; CID == 'csc791')
                 ),
                 SpecialOnes),
         length(SpecialOnes, NumSpecialTaken),
         
-        % List eligible courses
         forall(
             ( currentCourse(CourseID, SectionID, _, _, Prereq),
-            (is_cscElectivesOrResearch(CourseID)),
-            meet_prerequisite(StudentID, Prereq),
-            ( is_800_course(CourseID)
-            -> true
-            ; \+ hasTakenCourse(StudentID, CourseID, _, _, _)
-            )
+              ((is_cscElectivesOrResearch(CourseID); CourseID == 'csc591'; CourseID == 'csc791')),
+              meet_prerequisite(StudentID, Prereq),
+              ( is_800_course(CourseID)
+              -> true
+              ; (CourseID == 'csc591'; CourseID == 'csc791')
+              -> \+ hasTakenCourse(StudentID, CourseID, SectionID, _, _)
+              ; \+ hasTakenCourse(StudentID, CourseID, _, _, _)
+              )
             ),
             format('  ~w (~w)~n', [CourseID, SectionID])
         )
     ).
-
