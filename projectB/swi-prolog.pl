@@ -1011,9 +1011,11 @@ recommend_for_core(StudentID, Course, Section) :-
 recommend_for_700level(StudentID, Course, Section) :-
     \+ seven_hundred_satisfied_check(StudentID),
     currentCourse(Course, Section, _, _, Prereq),
-    is_700_course(Course),
+    (is_700_course(Course); Course == 'csc791'),
     meet_prerequisite(StudentID, Prereq),
-    \+ hasTakenCourse(StudentID, Course, _, _, _).
+    (Course == 'csc791'
+    -> \+ hasTakenCourse(StudentID, Course, Section, _, _)
+    ;  \+ hasTakenCourse(StudentID, Course, _, _, _)).
 
 % 4. Dissertation requirement
 recommend_for_dissertation(StudentID, Course, Section) :-
@@ -1025,20 +1027,39 @@ recommend_for_dissertation(StudentID, Course, Section) :-
     (\+ (phdWrittenExamTaken(StudentID, _, _, WR), WR == pass)
      ; \+ (phdOralExamTaken(StudentID, _, _, OR), OR == pass)).
 
-% 5. Exams requirement
+% 5. Exams requirement - returns courses AND prints exam messages
 recommend_for_exams(StudentID, Course, Section) :-
     \+ exams_satisfied_check(StudentID),
-    (   % Need prelims - recommend 890
-        (\+ (phdWrittenExamTaken(StudentID, _, _, WR), WR == pass)
-         ; \+ (phdOralExamTaken(StudentID, _, _, OR), OR == pass)),
+    
+    % Get total 890 credits
+    findall(U, hasTakenCourse(StudentID, 'csc890', _, U, _), Units890),
+    sum_list(Units890, Total890),
+    
+    % Decision tree
+    (   Total890 >= 6
+    ->  % Check exam progression
+        (   \+ (phdWrittenExamTaken(StudentID, _, _, WR), WR == pass)
+        ->  format('  [Action needed: Take Written Preliminary Exam]~n', []),
+            fail  % No course to recommend
+        ;   \+ (phdOralExamTaken(StudentID, _, _, OR), OR == pass)
+        ->  format('  [Action needed: Take Oral Preliminary Exam]~n', []),
+            fail  % No course to recommend
+        ;   % Both prelims passed, check 899
+            (   \+ (phdDefenseTaken(StudentID, _, _, DR), DR == pass)
+            ->  (   hasTakenCourse(StudentID, 'csc899', _, _, G899),
+                    G899 >= 3.0
+                ->  format('  [Action needed: Schedule Defense]~n', []),
+                    fail  % No course to recommend
+                ;   % Need to take/retake 899
+                    Course = 'csc899',
+                    currentCourse(Course, Section, _, _, Prereq),
+                    meet_prerequisite(StudentID, Prereq)
+                )
+            ;   fail  % All exams passed
+            )
+        )
+    ;   % Need more 890 credits
         Course = 'csc890',
-        currentCourse(Course, Section, _, _, Prereq),
-        meet_prerequisite(StudentID, Prereq)
-    ;   % Prelims passed, need defense - recommend 899
-        (phdWrittenExamTaken(StudentID, _, _, WR), WR == pass),
-        (phdOralExamTaken(StudentID, _, _, OR), OR == pass),
-        \+ (phdDefenseTaken(StudentID, _, _, DR), DR == pass),
-        Course = 'csc899',
         currentCourse(Course, Section, _, _, Prereq),
         meet_prerequisite(StudentID, Prereq)
     ).
