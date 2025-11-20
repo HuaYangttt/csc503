@@ -197,9 +197,14 @@ student_gpa(StudentID, CourseIDs, GPA) :-
     length(NumericGrades, Count),
     GPA is Sum / Count.
 
+% default fails
 phdWrittenExamTaken(_, _, _, _) :- fail.
 phdOralExamTaken(_, _, _, _) :- fail.
 phdDefenseTaken(_, _, _, _) :- fail.
+graduateAdvisor(_, _, _) :- fail.
+advisoryCommitteeMember(_, _) :- fail.
+facultyAffiliation(_, _) :- fail.
+planOfGraduateWorkApproved(_) :- fail.
 
 % meet_prerequisite(+StudentID, +CourseID, +MinGrade)
 % Checks if StudentID has taken CourseID with a grade >= MinGrade.
