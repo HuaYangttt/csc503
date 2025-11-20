@@ -197,15 +197,6 @@ student_gpa(StudentID, CourseIDs, GPA) :-
     length(NumericGrades, Count),
     GPA is Sum / Count.
 
-% default fails
-phdWrittenExamTaken(_, _, _, _) :- fail.
-phdOralExamTaken(_, _, _, _) :- fail.
-phdDefenseTaken(_, _, _, _) :- fail.
-graduateAdvisor(_, _, _) :- fail.
-advisoryCommitteeMember(_, _) :- fail.
-facultyAffiliation(_, _) :- fail.
-planOfGraduateWorkApproved(_) :- fail.
-
 % meet_prerequisite(+StudentID, +CourseID, +MinGrade)
 % Checks if StudentID has taken CourseID with a grade >= MinGrade.
 meet_prerequisite(StudentID, CourseID, MinGrade) :-
@@ -971,35 +962,116 @@ allow_630(CID, Sum630Units) :-
 % Main recommendation predicate for PhD students
 recommendSemesterWork(StudentID, phd) :-
     format('Recommendations for PhD student ~w:~n', [StudentID]),
-    (   all_phd_requirements_satisfied(StudentID)
+    
+    % Collect recommendations from each requirement sequentially
+    findall(C-S, recommend_for_orientation(StudentID, C, S), L1),
+    findall(C-S, recommend_for_core(StudentID, C, S), L2),
+    findall(C-S, recommend_for_700level(StudentID, C, S), L3),
+    findall(C-S, recommend_for_dissertation(StudentID, C, S), L4),
+    findall(C-S, recommend_for_exams(StudentID, C, S), L5),
+    
+    % Combine recommendations so far
+    append([L1, L2, L3, L4, L5], RecommendedSoFar),
+    sort(RecommendedSoFar, UniqueRecommendedSoFar),
+    
+    % Check credit requirement LAST - if not met, add all remaining eligible courses
+    (   elective_research_satisfied_check(StudentID)
+    ->  FinalRecommendations = UniqueRecommendedSoFar
+    ;   findall(C-S, 
+                (recommend_for_credits(StudentID, C, S),
+                 \+ member(C-S, UniqueRecommendedSoFar)),
+                L6),
+        append(UniqueRecommendedSoFar, L6, AllRecs),
+        sort(AllRecs, FinalRecommendations)
+    ),
+    
+    % Print results
+    (   FinalRecommendations == []
     ->  format('All PhD requirements are satisfied. No further courses recommended.~n', [])
-    ;   findall(1,
-                ( hasTakenCourse(StudentID, CID, _S, _U, _G),
-                  (CID == 'csc591' ; CID == 'csc791')
-                ),
-                SpecialOnes),
-        length(SpecialOnes, NumSpecialTaken),
-        
-        % Check exam status
-        ( (phdWrittenExamTaken(StudentID, _, _, WrittenResult), WrittenResult == pass) -> WrittenPass = true ; WrittenPass = false ),
-        ( (phdOralExamTaken(StudentID, _, _, OralResult), OralResult == pass) -> OralPass = true ; OralPass = false ),
-        
-        forall(
-            ( currentCourse(CourseID, SectionID, _, _, Prereq),
-              ((is_cscElectivesOrResearch(CourseID); CourseID == 'csc591'; CourseID == 'csc791')),
-              meet_prerequisite(StudentID, Prereq),
-              % Filter 890/899 based on prelim status
-              ( CourseID == 'csc890' -> (\+ WrittenPass ; \+ OralPass)
-              ; CourseID == 'csc899' -> (WrittenPass, OralPass)
-              ; true
-              ),
-              ( is_800_course(CourseID)
-              -> true
-              ; (CourseID == 'csc591'; CourseID == 'csc791')
-              -> \+ hasTakenCourse(StudentID, CourseID, SectionID, _, _)
-              ; \+ hasTakenCourse(StudentID, CourseID, _, _, _)
-              )
-            ),
-            format('  ~w (~w)~n', [CourseID, SectionID])
-        )
+    ;   forall(member(C-S, FinalRecommendations),
+               format('  ~w (~w)~n', [C, S]))
     ).
+
+% 1. Orientation requirement
+recommend_for_orientation(StudentID, Course, Section) :-
+    \+ orientation_satisfied(StudentID),
+    Course = 'csc600',
+    currentCourse(Course, Section, _, _, Prereq),
+    meet_prerequisite(StudentID, Prereq).
+
+% 2. Core courses requirement
+recommend_for_core(StudentID, Course, Section) :-
+    \+ core_courses_satisfied(StudentID),
+    currentCourse(Course, Section, _, _, Prereq),
+    (is_theory_course(Course); is_systems_course(Course)),
+    meet_prerequisite(StudentID, Prereq),
+    \+ hasTakenCourse(StudentID, Course, _, _, _).
+
+% 3. 700-level requirement
+recommend_for_700level(StudentID, Course, Section) :-
+    \+ seven_hundred_satisfied_check(StudentID),
+    currentCourse(Course, Section, _, _, Prereq),
+    is_700_course(Course),
+    meet_prerequisite(StudentID, Prereq),
+    \+ hasTakenCourse(StudentID, Course, _, _, _).
+
+% 4. Dissertation requirement
+recommend_for_dissertation(StudentID, Course, Section) :-
+    \+ dissertation_satisfied_check(StudentID),
+    Course = 'csc890',
+    currentCourse(Course, Section, _, _, Prereq),
+    meet_prerequisite(StudentID, Prereq),
+    % Only if prelims not passed
+    (\+ (phdWrittenExamTaken(StudentID, _, _, WR), WR == pass)
+     ; \+ (phdOralExamTaken(StudentID, _, _, OR), OR == pass)).
+
+% 5. Exams requirement
+recommend_for_exams(StudentID, Course, Section) :-
+    \+ exams_satisfied_check(StudentID),
+    (   % Need prelims - recommend 890
+        (\+ (phdWrittenExamTaken(StudentID, _, _, WR), WR == pass)
+         ; \+ (phdOralExamTaken(StudentID, _, _, OR), OR == pass)),
+        Course = 'csc890',
+        currentCourse(Course, Section, _, _, Prereq),
+        meet_prerequisite(StudentID, Prereq)
+    ;   % Prelims passed, need defense - recommend 899
+        (phdWrittenExamTaken(StudentID, _, _, WR), WR == pass),
+        (phdOralExamTaken(StudentID, _, _, OR), OR == pass),
+        \+ (phdDefenseTaken(StudentID, _, _, DR), DR == pass),
+        Course = 'csc899',
+        currentCourse(Course, Section, _, _, Prereq),
+        meet_prerequisite(StudentID, Prereq)
+    ).
+
+% 6. Credit requirement - all eligible courses
+recommend_for_credits(StudentID, Course, Section) :-
+    currentCourse(Course, Section, _, _, Prereq),
+    (is_cscElectivesOrResearch(Course); Course == 'csc591'; Course == 'csc791'),
+    meet_prerequisite(StudentID, Prereq),
+    % Exam-based filtering
+    (   Course == 'csc890' 
+    ->  (\+ (phdWrittenExamTaken(StudentID, _, _, WR), WR == pass)
+         ; \+ (phdOralExamTaken(StudentID, _, _, OR), OR == pass))
+    ;   Course == 'csc899'
+    ->  (phdWrittenExamTaken(StudentID, _, _, WR), WR == pass),
+        (phdOralExamTaken(StudentID, _, _, OR), OR == pass)
+    ;   true
+    ),
+    % Already taken check
+    (   is_800_course(Course) -> true
+    ;   (Course == 'csc591'; Course == 'csc791') 
+    ->  \+ hasTakenCourse(StudentID, Course, Section, _, _)
+    ;   \+ hasTakenCourse(StudentID, Course, _, _, _)
+    ).
+
+% Default fact predicates - fail if no facts exist in knowledge base
+phdWrittenExamTaken(_, _, _, _) :- fail.
+phdOralExamTaken(_, _, _, _) :- fail.
+phdDefenseTaken(_, _, _, _) :- fail.
+hasTakenCourse(_, _, _, _, _) :- fail.
+registrationSemester(_, _, _, _, _) :- fail.
+currentCourse(_, _, _, _, _) :- fail.
+graduateAdvisor(_, _, _) :- fail.
+advisoryCommitteeMember(_, _) :- fail.
+facultyAffiliation(_, _) :- fail.
+planOfGraduateWorkApproved(_) :- fail.
