@@ -691,7 +691,7 @@ dissertation_credits_satisfied(StudentID) :-
             UnitsList890),
     sum_list(UnitsList890, TotalUnits890),
     TotalUnits890 >= 6.
-% Subgoal 5: Elective/research credits satisfied (>=47 units)
+% Subgoal 5: Elective/research credits satisfied (>=72 units)
 elective_research_credits_satisfied(StudentID) :-
     units_csc_elective_research_phd(StudentID, TotalUnits),
     TotalUnits >= 72.
