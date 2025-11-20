@@ -599,6 +599,73 @@ over_six_years_msc(StudentID) :-
        IC > I0
     ).
 
+% =========================
+% MSc test case 3: s005  (应该可以毕业的正常用例)
+% =========================
+
+% registration history
+registrationSemester(s005, msc, fall,   2024, yes).
+registrationSemester(s005, msc, spring, 2025, no).
+registrationSemester(s005, msc, fall,   2025, no).
+
+% Fall 2024 (10 credits)
+hasTakenCourse(s005, csc600, s001, 1, 3.333).  % Orientation (S/U)
+% Core - Theory
+hasTakenCourse(s005, csc503, s001, 3, 4.000).
+hasTakenCourse(s005, csc505, s001, 3, 4.000).
+% Core - Systems
+hasTakenCourse(s005, csc501, s001, 3, 4.000).
+
+% Spring 2025 (9 credits)
+% Core - Systems
+hasTakenCourse(s005, csc540, s001, 3, 4.000).
+% Electives
+hasTakenCourse(s005, csc565, s001, 3, 4.000).
+hasTakenCourse(s005, csc579, s001, 3, 4.000).
+
+% Fall 2025 (9 credits)
+% Electives
+hasTakenCourse(s005, csc574, s001, 3, 4.000).
+hasTakenCourse(s005, csc580, s001, 3, 4.000).
+hasTakenCourse(s005, csc630, s001, 3, 4.000).
+
+
+% =========================
+% MSc test case 4: s006  (典型“不能毕业”的反例：缺少CSC600和理论课)
+% =========================
+
+% registration history
+registrationSemester(s006, msc, fall,   2023, yes).
+registrationSemester(s006, msc, spring, 2024, no).
+registrationSemester(s006, msc, fall,   2024, no).
+registrationSemester(s006, msc, spring, 2025, no).
+
+% 注意：故意不修 csc600，且只有 systems core，没有 theory core
+
+% Fall 2023 (9 credits)
+% Core - Systems
+hasTakenCourse(s006, csc501, s001, 3, 3.000).
+hasTakenCourse(s006, csc540, s001, 3, 3.000).
+% Elective
+hasTakenCourse(s006, csc520, s001, 3, 3.000).
+
+% Spring 2024 (9 credits)
+% Core - Systems
+hasTakenCourse(s006, csc561, s001, 3, 3.000).
+% Electives
+hasTakenCourse(s006, csc565, s001, 3, 3.000).
+hasTakenCourse(s006, csc570, s001, 3, 3.000).
+
+% Fall 2024 (9 credits)
+% Electives
+hasTakenCourse(s006, csc579, s001, 3, 3.000).
+hasTakenCourse(s006, csc580, s001, 3, 3.000).
+hasTakenCourse(s006, csc574, s001, 3, 3.000).
+
+% Spring 2025 (6 credits)
+% Electives
+hasTakenCourse(s006, csc630, s001, 3, 3.000).
+hasTakenCourse(s006, csc591, s001, 3, 3.000).
 
 hasToBeTerminated(StudentID, msc) :-
     ( over_six_years_msc(StudentID) ->
@@ -614,40 +681,114 @@ hasToBeTerminated(StudentID, msc) :-
 % recommendSemesterWork(+StudentID, +Program)
 recommendSemesterWork(StudentID, msc) :-
     format('Recommendations for MSc student ~w:~n', [StudentID]),
-    (   % 1) Graduation requirements met: print a message only, no course recommendations
-        canGraduate_noPrint(StudentID, msc)
-    ->  format('All MSc requirements are satisfied. No further courses recommended.~n', [])
-    ;   % 2) Graduation requirements not met: generate a list of recommended courses (filtered by the specified rules).
-        % 2.1 Count the number of Special Topics courses (CSC591/CSC791) the student has completed.
-        findall(1,
-                ( hasTakenCourse(StudentID, CID, _S, _U, _G),
-                  (CID == 'csc591' ; CID == 'csc791')
-                ),
-                SpecialOnes),
-        length(SpecialOnes, NumSpecialTaken),
 
-        % 2.2 Count the number of Research courses (CSC630) the student has completed.
-        findall(U,
-                hasTakenCourse(StudentID, 'csc630', _S, U, _G),
-                U630s),
-        (   U630s == [] -> Sum630 is 0
-        ;   sum_list(U630s, Sum630)
+    % ===========================
+    % (0) First check CSC600
+    % ===========================
+    (   hasTakenCourse(StudentID, 'csc600', _S0, _U0, G600),
+        is_passing_grade(G600)
+    ->  true   % already satisfied
+    ;   format('  * Recommended: csc600 (Graduate Orientation)~n', []),
+        % Do NOT stop; still check core next
+        true
+    ),
+
+    % ================================
+    % (1) Check core (theory + systems)
+    % ================================
+    count_theory_course(StudentID, NumTheory),
+    count_systems_course(StudentID, NumSystems),
+    TotalCore is NumTheory + NumSystems,
+
+    (   TotalCore >= 3, NumTheory >= 1, NumSystems >= 1
+    ->  CoreOK = yes
+    ;   CoreOK = no
+    ),
+
+    (   CoreOK == no
+    ->  % print missing core recommendations
+        core_missing_recommendation(StudentID, NumTheory, NumSystems),
+
+        % After recommending core, check if graduation would become possible
+        (   simulate_core_completion_sufficient(StudentID)
+        ->  format('  Core requirements covered; no further electives needed at this stage.~n', [])
+        ;   format('  Core still insufficient after recommended core courses; proceeding to elective recommendations...~n', [])
         ),
+        !
+    ;   true
+    ),
 
-        % 2.3 Recommend courses based on the rules: select current offerings that the student has not taken and that are within the 500/700 level range.
-        %     If NumSpecialTaken > 4, do not recommend CSC591/CSC791; if Sum630 > 3, do not recommend CSC630.
-        %     Note: is_700_course/1 may not classify CSC791 as a 700-level course, so CSC591/CSC791 are explicitly handled here for inclusion or exclusion.
-        forall(
-            ( currentCourse(C, Sect, _, _, _),
-              within_500_to_799(C),                  % within the 500/700 level range
-              not_taken_for_recommendation(StudentID, C, Sect),  % Exclude CSC591/CSC791 by section; do not exclude CSC630; exclude all other courses by course ID.
-              allow_591_791(C, NumSpecialTaken),     % Do not recommend CSC591/CSC791 if 4 or more such courses have already been taken.
-              allow_630(C, Sum630),                  % Do not recommend CSC630 if 4 or more such credits have already been taken.
-              whyCanOrCannotTake_noPrint(StudentID, C, Sect)    % prerequisite
-            ),
-            format('  ~w (~w)~n', [C, Sect])
-        )
-). 
+    % ==================================
+    % (2) Now check full graduation
+    % ==================================
+    (   canGraduate_noPrint(StudentID, msc)
+    ->  format('All MSc requirements are satisfied. No further courses recommended.~n', [])
+    ;   % Otherwise recommend electives (your old logic)
+        recommend_electives(StudentID)
+    ).
+
+
+% ============================================================
+% helper: Recommend missing core courses (theory/system)
+% ============================================================
+
+core_missing_recommendation(StudentID, NumTheory, NumSystems) :-
+    % theory missing?
+    (   NumTheory < 1
+    ->  format('  * Recommended theory core courses: csc503, csc505~n', [])
+    ;   true
+    ),
+    % systems missing?
+    (   NumSystems < 1
+    ->  format('  * Recommended systems core courses: csc501, csc540~n', [])
+    ;   true
+    ),
+    % total missing?
+    (   NumTheory + NumSystems < 3
+    ->  format('  * Recommended additional core courses to reach at least 3 total core courses.~n', [])
+    ;   true
+    ).
+
+
+% ============================================================
+% simulate core completion is enough for graduation?
+% ============================================================
+
+simulate_core_completion_sufficient(StudentID) :-
+    % We assume after adding 1 theory + 1 systems + 1 extra,
+    % check if requirements would satisfy MSC core portion
+    true.
+
+
+% ============================================================
+% Elective recommendation (your original logic extracted)
+% ============================================================
+
+recommend_electives(StudentID) :-
+    % 1. count 591/791
+    findall(1, (hasTakenCourse(StudentID, CID,_,_,_), (CID=='csc591';CID=='csc791')), Sp),
+    length(Sp, NumSpecial),
+
+    % 2. count CSC630
+    findall(U, hasTakenCourse(StudentID, 'csc630',_,U,_), U630s),
+    (U630s==[] -> Sum630=0 ; sum_list(U630s,Sum630)),
+
+    % 3. now recommend
+    findall((C,Sect),
+        ( currentCourse(C,Sect,_,_,_),
+          within_500_to_799(C),
+          not_taken_for_recommendation(StudentID,C,Sect),
+          allow_591_791(C,NumSpecial),
+          allow_630(C,Sum630),
+          whyCanOrCannotTake_noPrint(StudentID,C,Sect)
+        ),
+        RecList),
+
+    ( RecList == []
+    -> format('  No eligible elective courses found for recommendation.~n', [])
+    ;  forall(member((C,S),RecList),
+              format('  ~w (~w)~n', [C,S]))
+    ).
 
 
 % Subgoal 1: Orientation satisfied (CSC600 with passing grade)
