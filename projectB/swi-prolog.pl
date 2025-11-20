@@ -694,7 +694,7 @@ dissertation_credits_satisfied(StudentID) :-
 % Subgoal 5: Elective/research credits satisfied (>=47 units)
 elective_research_credits_satisfied(StudentID) :-
     units_csc_elective_research_phd(StudentID, TotalUnits),
-    TotalUnits >= 47.
+    TotalUnits >= 72.
 % Subgoal 6: Advisor satisfied (graduate advisor must be CSC faculty)
 advisor_satisfied(StudentID) :-
     graduateAdvisor(StudentID, Advisor, phd),
