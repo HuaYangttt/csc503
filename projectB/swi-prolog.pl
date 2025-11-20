@@ -912,7 +912,7 @@ canGraduate(StudentID, phd) :-
     ;  format('Fail: Student ~w did not complete at least 6 units of CSC890 (dissertation preparation).~n', [StudentID]),
        fail ),
 
-    % Subgoal 5: Elective + research credit requirement (>= 47)
+    % Subgoal 5: Elective + research credit requirement (>= 72)
     ( elective_research_credits_satisfied(StudentID)
     -> true
     ;  format('Fail: Student ~w does not have the required 47+ units of electives and research credits.~n', [StudentID]),
