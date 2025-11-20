@@ -1112,20 +1112,17 @@ recommendSemesterWork(StudentID, phd) :-
                 SpecialOnes),
         length(SpecialOnes, NumSpecialTaken),
         
-        % Count passed csc890 instances
-        findall(1,
-                (hasTakenCourse(StudentID, 'csc890', _, _, Grade),
-                 Grade >= 3.0),
-                Passed890),
-        length(Passed890, NumPassed890),
+        % Check exam status
+        ( (phdWrittenExamTaken(StudentID, _, _, WrittenResult), WrittenResult == pass) -> WrittenPass = true ; WrittenPass = false ),
+        ( (phdOralExamTaken(StudentID, _, _, OralResult), OralResult == pass) -> OralPass = true ; OralPass = false ),
         
         forall(
             ( currentCourse(CourseID, SectionID, _, _, Prereq),
               ((is_cscElectivesOrResearch(CourseID); CourseID == 'csc591'; CourseID == 'csc791')),
               meet_prerequisite(StudentID, Prereq),
-              % Filter csc890/csc899 based on prelim status
-              ( CourseID == 'csc890' -> NumPassed890 < 2
-              ; CourseID == 'csc899' -> NumPassed890 >= 2
+              % Filter 890/899 based on prelim status
+              ( CourseID == 'csc890' -> (\+ WrittenPass ; \+ OralPass)
+              ; CourseID == 'csc899' -> (WrittenPass, OralPass)
               ; true
               ),
               ( is_800_course(CourseID)
