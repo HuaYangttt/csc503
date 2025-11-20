@@ -510,17 +510,25 @@ whyCanOrCannotTake(StudentID, CourseID, SectionID) :-
             currentCourse(CourseID, SectionID, _, MaxU, _),
             MaxU > 12,
             format(atom(Reason), 'Course ~w exceeds 12-unit per semester limit (~w units)', [CourseID, MaxU])
+        );
+        (
+            % 6. CSC890 credit limit reached
+            CourseID == 'csc890',
+            findall(U, hasTakenCourse(StudentID, 'csc890', _, U, G), Units890),
+            sum_list(Units890, Total890),
+            Total890 >= 6,
+            format(atom(Reason), 'Student ~w has already completed 6 credits of CSC890', [StudentID])
         )
     ), Reasons),
 
     ( Reasons = [] ->
-    format('Student ~w can enroll in ~w (section ~w).~n', [StudentID, CourseID, SectionID])
-;
-    format('Student ~w cannot enroll in ~w (section ~w) because:~n', [StudentID, CourseID, SectionID]),
-    sort(Reasons, UniqueReasons),
-    forall(member(R, UniqueReasons), format('- ~w~n', [R])),
-    fail
-).
+        format('Student ~w can enroll in ~w (section ~w).~n', [StudentID, CourseID, SectionID])
+    ;
+        format('Student ~w cannot enroll in ~w (section ~w) because:~n', [StudentID, CourseID, SectionID]),
+        sort(Reasons, UniqueReasons),
+        forall(member(R, UniqueReasons), format('- ~w~n', [R])),
+        fail
+    ).
 
 canGraduate(StudentID, msc) :-
     % 1. Must pass CSC600 (Graduate Orientation).
